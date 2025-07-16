@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../home/home_screen.dart';
 
 class AssignmentsScreen extends StatefulWidget {
   const AssignmentsScreen({Key? key}) : super(key: key);
@@ -95,7 +96,10 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       ),
     );
     Future.delayed(const Duration(seconds: 1), () {
-      Navigator.of(context).pushReplacementNamed('/home');
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => MainScreen()),
+        (route) => false,
+      );
     });
   }
 

@@ -11,7 +11,6 @@ import '../grades/grades_screen.dart';
 import '../assignments/assignments_screen.dart';
 import '../../main.dart';
 import '../../utils/responsive_helper.dart';
-import '../../admin notifications/admin_notifications.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -35,7 +34,6 @@ class _MainScreenState extends State<MainScreen> {
     HomeScreenContent(),
     ChatScreen(),
     ScheduleScreen(),
-    AdminNotificationsScreen(),
     ProfileScreen(),
   ];
 
@@ -197,7 +195,7 @@ class _MainScreenState extends State<MainScreen> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
-              color: Theme.of(context).cardColor.withOpacity(0.75),
+              color: Theme.of(context).cardColor.withValues(alpha: 0.75),
               child: Padding(
                 padding: EdgeInsets.symmetric(
                   vertical: ResponsiveHelper.isTablet(context) ? 14 : 10, 
@@ -205,26 +203,22 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(5, (index) {
+                  children: List.generate(4, (index) {
                     final icons = [
                       Icons.home,
                       Icons.chat,
                       Icons.schedule,
-                      Icons.campaign,
                       Icons.person,
                     ];
                     final labels = [
                       'الرئيسية',
                       'المحادثات',
                       'جدول الحصص',
-                      'تبليغات الإدارة',
                       'البروفايل',
                     ];
                     final isActive = _selectedIndex == index;
                     return GestureDetector(
-                      onTap: () {
-                        _onItemTapped(index);
-                      },
+                      onTap: () => _onItemTapped(index),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
                         curve: Curves.easeOut,
@@ -333,20 +327,7 @@ class HomeScreenContent extends StatelessWidget {
             // خلفية بتدرج أزرق ومربعات شفافة
             Container(
               decoration: BoxDecoration(
-                gradient: Theme.of(context).brightness == Brightness.dark
-                    ? const LinearGradient(
-                        colors: [Color(0xFF101C2C), Color(0xFF233A5A)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : const LinearGradient(
-                        colors: [
-                          Color(0xFFFFFFFF),
-                          Color(0xFFE3F0FA), // very light blue for direction
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                color: Theme.of(context).scaffoldBackgroundColor,
               ),
             ),
             CustomPaint(
@@ -426,152 +407,173 @@ class HomeScreenContent extends StatelessWidget {
                   // كروت الإجراءات
                   Padding(
                     padding: EdgeInsets.only(
-                      top: 0.0,
-                      bottom: ResponsiveHelper.isTablet(context) ? 32.0 : 24.0,
-                      left: ResponsiveHelper.isTablet(context) ? 16 : 12,
-                      right: ResponsiveHelper.isTablet(context) ? 16 : 12,
+                      top: 0.0, 
+                      bottom: ResponsiveHelper.isTablet(context) ? 32.0 : 24.0, 
+                      left: ResponsiveHelper.isTablet(context) ? 16 : 12, 
+                      right: ResponsiveHelper.isTablet(context) ? 16 : 12
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        ListView.builder(
+                        GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: HomePageContent.cardsData.length,
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: ResponsiveHelper.getGridCrossAxisCount(context),
+                            crossAxisSpacing: ResponsiveHelper.getGridSpacing(context),
+                            mainAxisSpacing: ResponsiveHelper.getGridSpacing(context),
+                            childAspectRatio: ResponsiveHelper.getGridChildAspectRatio(context),
+                          ),
                           itemBuilder: (context, index) {
                             final card = HomePageContent.cardsData[index];
-                            return Padding(
-                              padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.isTablet(context) ? 14 : 8),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(16),
-                                  onTap: () {
-                                    if (card["title"] == "رفع الملفات") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => PdfUploadScreen()),
-                                      );
-                                    } else if (card["title"] == "حضور الطلاب") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => StudentAttendanceScreen()),
-                                      );
-                                    } else if (card["title"] == "ارسال اسئله الامتحانيه الخاصه بالطلبة") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => ExamQuestionsScreen()),
-                                      );
-                                    } else if (card["title"] == "اختبارات قصيرة تفاعلية") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => QuickTestsScreen()),
-                                      );
-                                    } else if (card["title"] == "إدخال الدرجات") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => GradesScreen()),
-                                      );
-                                    } else if (card["title"] == "تحديد الواجبات") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => AssignmentsScreen()),
-                                      );
-                                    }
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).brightness == Brightness.dark
-                                          ? const Color(0xFF232B5A)
-                                          : Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Theme.of(context).brightness == Brightness.dark
-                                              ? Colors.black.withOpacity(0.18)
-                                              : Colors.blue.withOpacity(0.08),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 4),
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(ResponsiveHelper.getBorderRadius(context)),
+                                onTap: () {
+                                  if (card["title"] == "رفع الملفات") {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => PdfUploadScreen()),
+                                    );
+                                  } else if (card["title"] == "حضور الطلاب") {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => StudentAttendanceScreen()),
+                                    );
+                                  } else if (card["title"] == "ارسال اسئله الامتحانيه الخاصه بالطلبة") {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => ExamQuestionsScreen()),
+                                    );
+                                  } else if (card["title"] == "اختبارات قصيرة تفاعلية") {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => QuickTestsScreen()),
+                                    );
+                                  } else if (card["title"] == "إدخال الدرجات") {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => GradesScreen()),
+                                    );
+                                  } else if (card["title"] == "تحديد الواجبات") {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => AssignmentsScreen()),
+                                    );
+                                  }
+                                },
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).cardColor,
+                                        borderRadius: BorderRadius.circular(ResponsiveHelper.getBorderRadius(context)),
+                                        boxShadow: ResponsiveHelper.getResponsiveShadow(context),
+                                      ),
+                                      margin: EdgeInsets.only(top: ResponsiveHelper.isTablet(context) ? 36 : 28),
+                                      padding: EdgeInsets.only(
+                                        top: ResponsiveHelper.isTablet(context) ? 40 : 32, 
+                                        left: ResponsiveHelper.isTablet(context) ? 8 : 6, 
+                                        right: ResponsiveHelper.isTablet(context) ? 8 : 6, 
+                                        bottom: ResponsiveHelper.isTablet(context) ? 12 : 8
+                                      ),
+                                      child: SingleChildScrollView(
+                                        physics: NeverScrollableScrollPhysics(),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              card["title"],
+                                              style: TextStyle(
+                                                color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                                  context,
+                                                  mobile: 15.5,
+                                                  tablet: 17.5,
+                                                  desktop: 19,
+                                                ),
+                                                letterSpacing: 0.1,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            SizedBox(height: ResponsiveHelper.isTablet(context) ? 6 : 4),
+                                            Text(
+                                              card["hint"] ?? '',
+                                              style: TextStyle(
+                                                color: Color(0xFFB0BEC5),
+                                                fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                                  context,
+                                                  mobile: 12.5,
+                                                  tablet: 14.5,
+                                                  desktop: 15,
+                                                ),
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: ResponsiveHelper.isTablet(context) ? 22 : 14,
-                                      horizontal: ResponsiveHelper.isTablet(context) ? 14 : 8,
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Container(
+                                    Positioned(
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: Container(
+                                          width: ResponsiveHelper.getResponsiveIconSize(
+                                            context,
+                                            mobile: 54,
+                                            tablet: 68,
+                                            desktop: 72,
+                                          ),
+                                          height: ResponsiveHelper.getResponsiveIconSize(
+                                            context,
+                                            mobile: 54,
+                                            tablet: 68,
+                                            desktop: 72,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: (card["iconBg"] ?? Color(0xFF1976D2)).withOpacity(0.95),
                                             shape: BoxShape.circle,
+                                            color: (card["iconBg"] ?? Colors.white)
+                                                .withOpacity(0.18),
+                                            border: Border.all(
+                                              color: Colors.white, 
+                                              width: ResponsiveHelper.isTablet(context) ? 3 : 2
+                                            ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: (card["iconBg"] ?? Color(0xFF1976D2)).withOpacity(0.35),
-                                                blurRadius: 12,
-                                                offset: Offset(0, 4),
+                                                color: (card["iconBg"] ?? Colors.blue)
+                                                    .withOpacity(0.18),
+                                                blurRadius: ResponsiveHelper.isTablet(context) ? 12 : 8,
+                                                offset: Offset(0, ResponsiveHelper.isTablet(context) ? 4 : 2),
                                               ),
                                             ],
                                           ),
-                                          padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 12 : 8),
-                                          child: Icon(
-                                            card["icon"],
-                                            color: Colors.white,
-                                            size: ResponsiveHelper.getResponsiveIconSize(
-                                              context,
-                                              mobile: 26,
-                                              tablet: 32,
-                                              desktop: 36,
+                                          child: Center(
+                                            child: Icon(
+                                              card["icon"],
+                                              color: card["iconColor"] ?? Color(0xFF1976D2),
+                                              size: ResponsiveHelper.getResponsiveIconSize(
+                                                context,
+                                                mobile: 30,
+                                                tablet: 36,
+                                                desktop: 40,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                card["title"],
-                                                style: TextStyle(
-                                                  color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                                    context,
-                                                    mobile: 15.5,
-                                                    tablet: 17.5,
-                                                    desktop: 19,
-                                                  ),
-                                                  letterSpacing: 0.1,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              SizedBox(height: ResponsiveHelper.isTablet(context) ? 8 : 6),
-                                              Text(
-                                                card["hint"] ?? '',
-                                                style: TextStyle(
-                                                  color: Theme.of(context).brightness == Brightness.dark
-                                                      ? Colors.white.withOpacity(0.7)
-                                                      : Color(0xFF90A4AE),
-                                                  fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                                    context,
-                                                    mobile: 12.5,
-                                                    tablet: 14.5,
-                                                    desktop: 15,
-                                                  ),
-                                                  fontWeight: FontWeight.w400,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
                               ),
                             );
@@ -594,45 +596,57 @@ class HomePageContent {
   static final List<Map<String, dynamic>> cardsData = [
     {
       "title": "حضور الطلاب",
+      "icon": Icons.how_to_reg,
+      "iconColor": Color(0xFF1976D2),
+      "iconBg": Color(0xFF64B5F6),
       "hint": "تسجيل الحضور اليومي",
-      "icon": Icons.check_circle,
-      "iconColor": Colors.white,
-      "iconBg": Color(0xFF43A047), // Green
-    },
-    {
-      "title": "إدخال الدرجات",
-      "hint": "تسجيل درجات الطلاب",
-      "icon": Icons.grade,
-      "iconColor": Colors.white,
-      "iconBg": Color(0xFFD32F2F), // Red
-    },
-    {
-      "title": "رفع الملفات",
-      "hint": "إرسال ملفات PDF أو صور للطلاب",
-      "icon": Icons.cloud_upload,
-      "iconColor": Colors.white,
-      "iconBg": Color(0xFF1976D2), // Blue
-    },
-    {
-      "title": "اختبارات قصيرة تفاعلية",
-      "hint": "إنشاء اختبارات قصيرة للطلاب",
-      "icon": Icons.flash_on,
-      "iconColor": Colors.white,
-      "iconBg": Color(0xFF8E24AA), // Purple
+      "gradient":
+          LinearGradient(colors: [Color(0xFF1976D2), Color(0xFF64B5F6)]),
     },
     {
       "title": "تحديد الواجبات",
-      "hint": "إضافة واجبات للطلاب",
       "icon": Icons.assignment,
-      "iconColor": Colors.white,
-      "iconBg": Color(0xFF0288D1), // Light Blue
+      "iconColor": Color(0xFF1A237E),
+      "iconBg": Color(0xFF7986CB),
+      "hint": "إضافة أو تعديل الواجب",
+      "gradient":
+          LinearGradient(colors: [Color(0xFF1A237E), Color(0xFF7986CB)]),
     },
     {
-      "title": "ارسال اسئله الامتحانيه الخاصه بالطلبة",
-      "hint": "إرسال أسئلة الامتحان للطلاب",
+      "title": "إدخال الدرجات",
+      "icon": Icons.grade,
+      "iconColor": Color(0xFF43A047),
+      "iconBg": Color(0xFFB2FF59),
+      "hint": "تقييم الطلاب بسهولة",
+      "gradient":
+          LinearGradient(colors: [Color(0xFF1976D2), Color(0xFF43A047)]),
+    },
+    {
+      "title": "رفع الملفات",
+      "icon": Icons.upload_file,
+      "iconColor": Color(0xFF00BCD4),
+      "iconBg": Color(0xFFB2EBF2),
+      "hint": "مشاركة ملفات مع الطلاب",
+      "gradient":
+          LinearGradient(colors: [Color(0xFF1A237E), Color(0xFF00BCD4)]),
+    },
+    {
+      "title": "اختبارات قصيرة تفاعلية",
       "icon": Icons.quiz,
-      "iconColor": Colors.white,
-      "iconBg": Color(0xFFFFA000), // Amber
+      "iconColor": Color(0xFFFFC107),
+      "iconBg": Color(0xFFFFF9C4),
+      "hint": "إنشاء اختبارات سريعة",
+      "gradient":
+          LinearGradient(colors: [Color(0xFF1976D2), Color(0xFFFFC107)]),
+    },
+    {
+      "title": "ارسال اسئله الامتحانيه ",
+      "icon": Icons.send,
+      "iconColor": Color(0xFFE040FB),
+      "iconBg": Color(0xFFF3E5F5),
+      "hint": "مراسلة الطلاب بالأسئلة",
+      "gradient":
+          LinearGradient(colors: [Color(0xFF1A237E), Color(0xFFE040FB)]),
     },
   ];
 }

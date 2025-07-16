@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({Key? key}) : super(key: key);
@@ -17,14 +17,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'اللغة العربية',
         'school': 'مدرسة النور',
+        'stage': 'الأول ابتدائي',
+        'section': 'شعبة أ',
         'time': '8:00 - 9:00',
-        'room': 'قاعة 101',
       },
       {
         'subject': 'التربية الإسلامية',
         'school': 'مدرسة النور',
+        'stage': 'الأول ابتدائي',
+        'section': 'شعبة ب',
         'time': '9:15 - 10:15',
-        'room': 'قاعة 105',
       },
     ],
     // الأسبوع الأول - الاثنين
@@ -32,8 +34,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'اللغة العربية',
         'school': 'مدرسة النور',
+        'stage': 'الثاني ابتدائي',
+        'section': 'شعبة أ',
         'time': '8:00 - 9:00',
-        'room': 'قاعة 102',
       },
     ],
     // الأسبوع الأول - الثلاثاء
@@ -41,8 +44,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'التربية الإسلامية',
         'school': 'مدرسة النور',
+        'stage': 'الثاني ابتدائي',
+        'section': 'شعبة ب',
         'time': '9:15 - 10:15',
-        'room': 'قاعة 105',
       },
     ],
     // الأسبوع الأول - الأربعاء
@@ -50,8 +54,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'اللغة العربية',
         'school': 'مدرسة النور',
+        'stage': 'الثالث ابتدائي',
+        'section': 'شعبة أ',
         'time': '10:30 - 11:30',
-        'room': 'قاعة 101',
       },
     ],
     // الأسبوع الأول - الخميس
@@ -59,17 +64,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'التربية الإسلامية',
         'school': 'مدرسة النور',
+        'stage': 'الثالث ابتدائي',
+        'section': 'شعبة ب',
         'time': '8:00 - 9:00',
-        'room': 'قاعة 105',
-      },
-    ],
-    // الأسبوع الأول - الجمعة
-    '2025-07-17': [
-      {
-        'subject': 'اللغة العربية',
-        'school': 'مدرسة النور',
-        'time': '9:15 - 10:15',
-        'room': 'قاعة 102',
       },
     ],
     // الأسبوع الأول - السبت
@@ -77,8 +74,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'التربية الإسلامية',
         'school': 'مدرسة النور',
+        'stage': 'الرابع ابتدائي',
+        'section': 'شعبة أ',
         'time': '10:30 - 11:30',
-        'room': 'قاعة 105',
       },
     ],
     // الأسبوع الثاني - الأحد
@@ -86,8 +84,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'اللغة العربية',
         'school': 'مدرسة النور',
+        'stage': 'الرابع ابتدائي',
+        'section': 'شعبة ب',
         'time': '8:00 - 9:00',
-        'room': 'قاعة 101',
       },
     ],
     // الأسبوع الثاني - الاثنين
@@ -95,8 +94,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'التربية الإسلامية',
         'school': 'مدرسة النور',
+        'stage': 'الخامس ابتدائي',
+        'section': 'شعبة أ',
         'time': '9:15 - 10:15',
-        'room': 'قاعة 105',
       },
     ],
     // الأسبوع الثاني - الثلاثاء
@@ -104,8 +104,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'اللغة العربية',
         'school': 'مدرسة النور',
+        'stage': 'الخامس ابتدائي',
+        'section': 'شعبة ب',
         'time': '10:30 - 11:30',
-        'room': 'قاعة 102',
       },
     ],
     // الأسبوع الثاني - الأربعاء
@@ -113,8 +114,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'التربية الإسلامية',
         'school': 'مدرسة النور',
+        'stage': 'السادس ابتدائي',
+        'section': 'شعبة أ',
         'time': '8:00 - 9:00',
-        'room': 'قاعة 105',
       },
     ],
     // الأسبوع الثاني - الخميس
@@ -122,17 +124,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'اللغة العربية',
         'school': 'مدرسة النور',
+        'stage': 'السادس ابتدائي',
+        'section': 'شعبة ب',
         'time': '9:15 - 10:15',
-        'room': 'قاعة 101',
-      },
-    ],
-    // الأسبوع الثاني - الجمعة
-    '2025-07-24': [
-      {
-        'subject': 'التربية الإسلامية',
-        'school': 'مدرسة النور',
-        'time': '10:30 - 11:30',
-        'room': 'قاعة 105',
       },
     ],
     // الأسبوع الثاني - السبت
@@ -140,8 +134,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       {
         'subject': 'اللغة العربية',
         'school': 'مدرسة النور',
+        'stage': 'الأول ابتدائي',
+        'section': 'شعبة أ',
         'time': '8:00 - 9:00',
-        'room': 'قاعة 102',
       },
     ],
   };
@@ -191,10 +186,18 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: 7,
-                        separatorBuilder: (context, index) =>
-                            SizedBox(width: 4),
+                        separatorBuilder: (context, index) => SizedBox(width: 4),
                         itemBuilder: (context, index) {
-                          final day = DateTime.now().add(Duration(days: index));
+                          // Skip Fridays
+                          int added = 0;
+                          DateTime day = DateTime.now();
+                          while (added <= index) {
+                            if (day.weekday != DateTime.friday) {
+                              if (added == index) break;
+                              added++;
+                            }
+                            day = day.add(const Duration(days: 1));
+                          }
                           final isSelected =
                               DateFormat('yyyy-MM-dd').format(day) ==
                                   DateFormat('yyyy-MM-dd').format(_selectedDay);
@@ -359,35 +362,54 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         lesson['subject'],
                         style: const TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 26,
+                          letterSpacing: 0.2,
                         ),
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'الوقت: ${lesson['time']}',
-                            style: const TextStyle(
-                              color: Color(0xFFE3F2FD),
-                              fontSize: 15,
+                      subtitle: Directionality(
+                        textDirection: TextDirection.rtl,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'المدرسة: ${lesson['school'] ?? 'غير محددة'}',
+                              style: const TextStyle(
+                                color: Color(0xFFE3F2FD),
+                                fontSize: 15,
+                              ),
+                              textDirection: TextDirection.rtl,
                             ),
-                          ),
-                          Text(
-                            'المدرسة: ${lesson['school'] ?? 'غير محددة'}',
-                            style: const TextStyle(
-                              color: Color(0xFFE3F2FD),
-                              fontSize: 15,
+                            if (lesson['stage'] != null)
+                              Text(
+                                'المرحلة: ${lesson['stage']}',
+                                style: const TextStyle(
+                                  color: Color(0xFFE3F2FD),
+                                  fontSize: 15,
+                                ),
+                                textDirection: TextDirection.rtl,
+                              ),
+                            if (lesson['section'] != null)
+                              Text(
+                                'الشعبة: ${lesson['section']}',
+                                style: const TextStyle(
+                                  color: Color(0xFFE3F2FD),
+                                  fontSize: 15,
+                                ),
+                                textDirection: TextDirection.rtl,
+                              ),
+                            Text(
+                              'الوقت: ${lesson['time']}',
+                              style: const TextStyle(
+                                color: Color(0xFFE3F2FD),
+                                fontSize: 15,
+                              ),
+                              textDirection: TextDirection.rtl,
                             ),
-                          ),
-                          Text(
-                            'المكان: ${lesson['room']}',
-                            style: const TextStyle(
-                              color: Color(0xFFE3F2FD),
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   )),

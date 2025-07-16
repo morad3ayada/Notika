@@ -9,13 +9,26 @@ class QuickTestsScreen extends StatefulWidget {
 
 class _QuickTestsScreenState extends State<QuickTestsScreen> {
   final _formKey = GlobalKey<FormState>();
-  String? selectedClass;
-  final List<String> classes = [
-    'الصف الأول',
-    'الصف الثاني',
-    'الصف الثالث',
-    'الصف الرابع',
+  String? selectedSchool;
+  String? selectedStage;
+  String? selectedSection;
+  String? selectedSubject;
+  int? examGrade;
+  final List<String> schools = [
+    'مدرسة بغداد',
+    'مدرسة الكوفة',
+    'مدرسة البصرة',
   ];
+  final List<String> stages = [
+    'الأول ابتدائي',
+    'الثاني ابتدائي',
+    'الثالث ابتدائي',
+    'الرابع ابتدائي',
+    'الخامس ابتدائي',
+    'السادس ابتدائي',
+  ];
+  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
+  final List<String> subjects = ['اللغة العربية', 'التربية الإسلامية'];
   int? durationMinutes;
 
   final List<Map<String, dynamic>> questionTypes = [
@@ -37,19 +50,12 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
       "icon": Icons.edit,
       "iconColor": Color(0xFF1976D2),
     },
-    {
-      "label": "مقالي", 
-      "value": "essay", 
-      "icon": Icons.article,
-      "iconColor": Color(0xFF1976D2),
-    },
   ];
 
   Map<String, List<Map<String, dynamic>>> questionsByType = {
     "choice": [],
     "truefalse": [],
     "complete": [],
-    "essay": [],
   };
 
   void _addQuestion(String type) {
@@ -94,15 +100,39 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
   }
 
   void _submit() {
-    if (selectedClass == null) {
+    if (selectedSchool == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى اختيار الفصل')),
+        const SnackBar(content: Text('يرجى اختيار المدرسة')),
+      );
+      return;
+    }
+    if (selectedStage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى اختيار المرحلة')),
+      );
+      return;
+    }
+    if (selectedSection == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى اختيار الشعبة')),
+      );
+      return;
+    }
+    if (selectedSubject == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى اختيار المادة')),
       );
       return;
     }
     if (durationMinutes == null || durationMinutes! <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('يرجى تحديد مدة الاختبار بالدقائق')),
+      );
+      return;
+    }
+    if (examGrade == null || examGrade! <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى تحديد درجة الامتحان')),
       );
       return;
     }
@@ -118,11 +148,11 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('تم إرسال اختبار قصير للفصل $selectedClass بعدد $totalQuestions سؤال ومدة $durationMinutes دقيقة'),
+        content: Text('تم إرسال اختبار قصير للفصل $selectedSchool بعدد $totalQuestions سؤال ومدة $durationMinutes دقيقة'),
         backgroundColor: const Color(0xFF43A047),
       ),
     );
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 1), () {
       Navigator.of(context).pop();
     });
   }
@@ -494,86 +524,6 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
             ),
           ],
         );
-      case "essay":
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextFormField(
-                decoration: InputDecoration(
-                  labelText: 'نص السؤال',
-                  labelStyle: TextStyle(color: Color(0xFF233A5A)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Color(0xFF1976D2), width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
-                ),
-                maxLines: 3,
-                initialValue: question["question"],
-                onChanged: (val) => _updateQuestion(type, questionIndex, "question", val),
-                validator: (val) => val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
-              ),
-            ),
-            SizedBox(height: 20),
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextFormField(
-                decoration: InputDecoration(
-                  labelText: 'الإجابة النموذجية (اختياري)',
-                  labelStyle: TextStyle(color: Color(0xFF607D8B)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Color(0xFF1976D2), width: 2),
-                  ),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
-                ),
-                maxLines: 4,
-                initialValue: question["essayAnswer"],
-                onChanged: (val) => _updateQuestion(type, questionIndex, "essayAnswer", val),
-              ),
-            ),
-          ],
-        );
       default:
         return const SizedBox.shrink();
     }
@@ -581,414 +531,51 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      extendBodyBehindAppBar: true,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(80),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: Offset(0, 4),
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        extendBodyBehindAppBar: true,
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(80),
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
-            ],
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(32),
-              bottomRight: Radius.circular(32),
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Text(
-                      "اختبار قصير تفاعلي",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                ],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(32),
+                bottomRight: Radius.circular(32),
               ),
             ),
-          ),
-        ),
-      ),
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-            ),
-            width: double.infinity,
-            height: double.infinity,
-          ),
-          CustomPaint(
-            size: Size.infinite,
-            painter: _MeshBackgroundPainter(),
-          ),
-          CustomPaint(
-            size: Size.infinite,
-            painter: _GridPainter(gridColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
+                child: Row(
                   children: [
-                    // اختيار الفصل
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: classes.map((className) {
-                            final isSelected = selectedClass == className;
-                            return Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(25),
-                                  onTap: () {
-                                    setState(() {
-                                      selectedClass = className;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      gradient: isSelected
-                                          ? const LinearGradient(
-                                              colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                              begin: Alignment.centerLeft,
-                                              end: Alignment.centerRight,
-                                            )
-                                          : null,
-                                      color: isSelected ? null : Theme.of(context).cardColor,
-                                      borderRadius: BorderRadius.circular(25),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Text(
-                                      className,
-                                      style: TextStyle(
-                                        color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'مدة الاختبار (بالدقائق)',
-                      style: TextStyle(
-                        color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextFormField(
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          hintText: 'مثال: 20',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Color(0xFF1976D2), width: 2),
-                          ),
-                          filled: true,
-                          fillColor: Theme.of(context).cardColor,
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        "اختبارات سريعة",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 22,
                         ),
-                        onChanged: (val) {
-                          durationMinutes = int.tryParse(val);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Color(0xFF1976D2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.quiz,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'أنواع الأسئلة',
-                          style: TextStyle(
-                            color: Theme.of(context).textTheme.headlineSmall?.color ?? const Color(0xFF233A5A),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 22,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: questionTypes.length,
-                        itemBuilder: (context, index) {
-                          final type = questionTypes[index];
-                          final typeValue = type['value'] as String;
-                          final questions = questionsByType[typeValue]!;
-                          final iconColor = type['iconColor'] as Color;
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 24),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
-                                  blurRadius: 16,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFF1976D2),
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(24),
-                                      topRight: Radius.circular(24),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.08),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(
-                                          type['icon'] as IconData,
-                                          color: Colors.white,
-                                          size: 24,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              type['label'] as String,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 18,
-                                              ),
-                                            ),
-                                            SizedBox(height: 4),
-                                            Text(
-                                              '${questions.length} سؤال',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.onPrimary,
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          '${questions.length}',
-                                          style: TextStyle(
-                                            color: Theme.of(context).colorScheme.onPrimary,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(20),
-                                  child: Column(
-                                    children: [
-                                      ...List.generate(questions.length, (questionIndex) => Container(
-                                        margin: const EdgeInsets.only(bottom: 20),
-                                        padding: const EdgeInsets.all(20),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).cardColor,
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(color: Theme.of(context).dividerColor),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Container(
-                                                  padding: EdgeInsets.all(6),
-                                                  decoration: BoxDecoration(
-                                                    color: iconColor.withOpacity(0.1),
-                                                    borderRadius: BorderRadius.circular(8),
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.question_mark,
-                                                    color: iconColor,
-                                                    size: 16,
-                                                  ),
-                                                ),
-                                                SizedBox(width: 12),
-                                                Text(
-                                                  'سؤال ${questionIndex + 1}',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                    color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                                  ),
-                                                ),
-                                                const Spacer(),
-                                                Container(
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.red.withOpacity(0.1),
-                                                    borderRadius: BorderRadius.circular(8),
-                                                  ),
-                                                  child: IconButton(
-                                                    icon: Icon(Icons.delete, color: Colors.red[400], size: 20),
-                                                    onPressed: () => _removeQuestion(typeValue, questionIndex),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 16),
-                                            _buildQuestionInput(typeValue, questionIndex),
-                                          ],
-                                        ),
-                                      )),
-                                      Container(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            foregroundColor: iconColor,
-                                            elevation: 0,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(16),
-                                              side: BorderSide(color: iconColor, width: 2),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(vertical: 16),
-                                          ),
-                                          icon: Icon(Icons.add_circle_outline, color: iconColor),
-                                          label: Text(
-                                            'إضافة سؤال ${type['label']}',
-                                            style: TextStyle(
-                                              color: iconColor,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          onPressed: () => _addQuestion(typeValue),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF1976D2),
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 20),
-                        ),
-                        icon: Icon(Icons.send, color: Theme.of(context).colorScheme.onPrimary, size: 24),
-                        label: Text(
-                          'إرسال الاختبار',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        onPressed: _submit,
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
@@ -996,7 +583,484 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
               ),
             ),
           ),
-        ],
+        ),
+        body: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+              ),
+              width: double.infinity,
+              height: double.infinity,
+            ),
+            CustomPaint(
+              size: Size.infinite,
+              painter: _MeshBackgroundPainter(),
+            ),
+            CustomPaint(
+              size: Size.infinite,
+              painter: _GridPainter(gridColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+            ),
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // اختيارات المدرسة والمرحلة والشعبة والمادة
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: schools.map((school) {
+                              final isSelected = selectedSchool == school;
+                              return Container(
+                                margin: const EdgeInsets.only(left: 12),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(25),
+                                    onTap: () {
+                                      setState(() {
+                                        selectedSchool = school;
+                                        selectedStage = null;
+                                        selectedSection = null;
+                                        selectedSubject = null;
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        gradient: isSelected
+                                            ? const LinearGradient(
+                                                colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                begin: Alignment.centerRight,
+                                                end: Alignment.centerLeft,
+                                              )
+                                            : null,
+                                        color: isSelected ? null : Theme.of(context).cardColor,
+                                        borderRadius: BorderRadius.circular(25),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Text(
+                                        school,
+                                        style: TextStyle(
+                                          color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      if (selectedSchool != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: stages.map((stage) {
+                                final isSelected = selectedStage == stage;
+                                return Container(
+                                  margin: const EdgeInsets.only(left: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedStage = stage;
+                                          selectedSection = null;
+                                          selectedSubject = null;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                  begin: Alignment.centerRight,
+                                                  end: Alignment.centerLeft,
+                                                )
+                                              : null,
+                                          color: isSelected ? null : Theme.of(context).cardColor,
+                                          borderRadius: BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          stage,
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      if (selectedStage != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: sections.map((section) {
+                                final isSelected = selectedSection == section;
+                                return Container(
+                                  margin: const EdgeInsets.only(left: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedSection = section;
+                                          selectedSubject = null;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                  begin: Alignment.centerRight,
+                                                  end: Alignment.centerLeft,
+                                                )
+                                              : null,
+                                          color: isSelected ? null : Theme.of(context).cardColor,
+                                          borderRadius: BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          section,
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      if (selectedSection != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: subjects.map((subject) {
+                                final isSelected = selectedSubject == subject;
+                                return Container(
+                                  margin: const EdgeInsets.only(left: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedSubject = subject;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                  begin: Alignment.centerRight,
+                                                  end: Alignment.centerLeft,
+                                                )
+                                              : null,
+                                          color: isSelected ? null : Theme.of(context).cardColor,
+                                          borderRadius: BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          subject,
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'مدة الاختبار (بالدقائق)',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: 'مثال: 20',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).cardColor,
+                          ),
+                          onChanged: (val) {
+                            durationMinutes = int.tryParse(val);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'درجة الامتحان',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: 'مثال: 10',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).cardColor,
+                          ),
+                          onChanged: (val) {
+                            examGrade = int.tryParse(val);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Color(0xFF1976D2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.quiz,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'أنواع الأسئلة',
+                            style: TextStyle(
+                              color: Theme.of(context).textTheme.headlineSmall?.color ?? const Color(0xFF233A5A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 22,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      ...List.generate(questionTypes.length, (index) {
+                        final type = questionTypes[index];
+                        final typeValue = type['value'] as String;
+                        final questions = questionsByType[typeValue]!;
+                        final iconColor = type['iconColor'] as Color;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: iconColor.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      type['icon'] as IconData,
+                                      color: iconColor,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    type['label'] as String,
+                                    style: TextStyle(
+                                      color: Theme.of(context).textTheme.headlineSmall?.color ?? const Color(0xFF233A5A),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    '${questions.length} سؤال',
+                                    style: TextStyle(
+                                      color: Colors.grey[700],
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Color(0xFF1976D2),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    ),
+                                    icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                                    label: const Text('إضافة', style: TextStyle(color: Colors.white)),
+                                    onPressed: () => _addQuestion(typeValue),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              ...List.generate(questions.length, (qIndex) => _buildQuestionInput(typeValue, qIndex)),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 24),
+                      Container(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF1976D2),
+                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 20),
+                          ),
+                          icon: Icon(Icons.send, color: Theme.of(context).colorScheme.onPrimary, size: 24),
+                          label: Text(
+                            'إرسال الاختبار',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          onPressed: _submit,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

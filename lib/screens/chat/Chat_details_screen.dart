@@ -39,17 +39,18 @@ class ChatDetailsScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   child: Row(
                     children: [
+                      // Move back button to the right
                       IconButton(
                         icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1976D2)),
                         onPressed: () => Navigator.pop(context),
                       ),
                       CircleAvatar(
                         backgroundColor: const Color(0xFF64B5F6),
-                        child: Text(avatar, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text(getArabicInitial(userName), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 10),
                       Text(userName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A))),
-                    ],
+                    ].reversed.toList(), // Reverse to make back button on the right
                   ),
                 ),
                 const Divider(height: 1),
@@ -149,6 +150,12 @@ class ChatDetailsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+// Helper to get first Arabic letter
+String getArabicInitial(String name) {
+  final parts = name.trim().split(' ');
+  return parts[0].substring(0, 1);
 }
 
 class _MeshBackgroundPainter extends CustomPainter {

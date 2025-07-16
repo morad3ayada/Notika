@@ -27,7 +27,7 @@ class _SignInScreenState extends State<SignInScreen> {
     });
 
     // محاكاة عملية تسجيل الدخول
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 1));
 
     setState(() {
       _isLoading = false;

@@ -35,6 +35,11 @@ class ChatScreen extends StatelessWidget {
           separatorBuilder: (_, __) => const SizedBox(height: 18),
           itemBuilder: (context, index) {
             final user = users[index];
+            // Get Arabic initial (first letter)
+            String getArabicInitial(String name) {
+              final parts = name.trim().split(' ');
+              return parts[0].substring(0, 1);
+            }
             return Stack(
               clipBehavior: Clip.none,
               children: [
@@ -67,7 +72,7 @@ class ChatScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
                                   user["name"]!,
@@ -76,6 +81,7 @@ class ChatScreen extends StatelessWidget {
                                     fontWeight: FontWeight.bold,
                                     fontSize: 17,
                                   ),
+                                  textDirection: TextDirection.rtl,
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
@@ -86,17 +92,17 @@ class ChatScreen extends StatelessWidget {
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                  textDirection: TextDirection.rtl,
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Icon(Icons.arrow_forward_ios, color: Color(0xFFB0BEC5).withOpacity(0.7), size: 20),
                         ],
                       ),
                     ),
                   ),
                 ),
+                // Change avatar to use only one Arabic initial
                 Positioned(
                   right: -18,
                   top: 12,
@@ -121,7 +127,7 @@ class ChatScreen extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        user["avatar"]!,
+                        getArabicInitial(user["name"]!),
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,

@@ -11,6 +11,7 @@ import '../grades/grades_screen.dart';
 import '../assignments/assignments_screen.dart';
 import '../../main.dart';
 import '../../utils/responsive_helper.dart';
+import '../../admin notifications/admin_notifications.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -34,6 +35,7 @@ class _MainScreenState extends State<MainScreen> {
     HomeScreenContent(),
     ChatScreen(),
     ScheduleScreen(),
+    AdminNotificationsScreen(),
     ProfileScreen(),
   ];
 
@@ -195,7 +197,7 @@ class _MainScreenState extends State<MainScreen> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
-              color: Theme.of(context).cardColor.withValues(alpha: 0.75),
+              color: Theme.of(context).cardColor.withOpacity(0.75),
               child: Padding(
                 padding: EdgeInsets.symmetric(
                   vertical: ResponsiveHelper.isTablet(context) ? 14 : 10, 
@@ -203,22 +205,26 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(4, (index) {
+                  children: List.generate(5, (index) {
                     final icons = [
                       Icons.home,
                       Icons.chat,
                       Icons.schedule,
+                      Icons.campaign,
                       Icons.person,
                     ];
                     final labels = [
                       'الرئيسية',
                       'المحادثات',
                       'جدول الحصص',
+                      'تبليغات الإدارة',
                       'البروفايل',
                     ];
                     final isActive = _selectedIndex == index;
                     return GestureDetector(
-                      onTap: () => _onItemTapped(index),
+                      onTap: () {
+                        _onItemTapped(index);
+                      },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
                         curve: Curves.easeOut,
@@ -327,7 +333,20 @@ class HomeScreenContent extends StatelessWidget {
             // خلفية بتدرج أزرق ومربعات شفافة
             Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
+                gradient: Theme.of(context).brightness == Brightness.dark
+                    ? const LinearGradient(
+                        colors: [Color(0xFF101C2C), Color(0xFF233A5A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : const LinearGradient(
+                        colors: [
+                          Color(0xFFFFFFFF),
+                          Color(0xFFE3F0FA), // very light blue for direction
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
               ),
             ),
             CustomPaint(
@@ -442,7 +461,7 @@ class HomeScreenContent extends StatelessWidget {
                                       context,
                                       MaterialPageRoute(builder: (_) => StudentAttendanceScreen()),
                                     );
-                                  } else if (card["title"] == "إرسال أسئلة امتحانات") {
+                                  } else if (card["title"] == "ارسال اسئله الامتحانيه الخاصه بالطلبة") {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(builder: (_) => ExamQuestionsScreen()),
@@ -640,11 +659,11 @@ class HomePageContent {
           LinearGradient(colors: [Color(0xFF1976D2), Color(0xFFFFC107)]),
     },
     {
-      "title": "إرسال أسئلة امتحانات",
+      "title": "ارسال اسئله الامتحانيه ",
       "icon": Icons.send,
       "iconColor": Color(0xFFE040FB),
       "iconBg": Color(0xFFF3E5F5),
-      "hint": "مراسلة الطلاب بالأسئلة",
+      "hint": "مراسلة الادارة بالأسئلة",
       "gradient":
           LinearGradient(colors: [Color(0xFF1A237E), Color(0xFFE040FB)]),
     },

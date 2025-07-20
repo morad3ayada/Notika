@@ -11,6 +11,7 @@ import '../grades/grades_screen.dart';
 import '../assignments/assignments_screen.dart';
 import '../../main.dart';
 import '../../utils/responsive_helper.dart';
+import '../../admin notifications/admin_notifications.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -34,6 +35,7 @@ class _MainScreenState extends State<MainScreen> {
     HomeScreenContent(),
     ChatScreen(),
     ScheduleScreen(),
+    AdminNotificationsScreen(),
     ProfileScreen(),
   ];
 
@@ -203,17 +205,19 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(4, (index) {
+                  children: List.generate(5, (index) {
                     final icons = [
                       Icons.home,
                       Icons.chat,
                       Icons.schedule,
+                      Icons.campaign, // تبليغات
                       Icons.person,
                     ];
                     final labels = [
                       'الرئيسية',
                       'المحادثات',
                       'جدول الحصص',
+                      'تبليغات',
                       'البروفايل',
                     ];
                     final isActive = _selectedIndex == index;
@@ -442,7 +446,7 @@ class HomeScreenContent extends StatelessWidget {
                                       context,
                                       MaterialPageRoute(builder: (_) => StudentAttendanceScreen()),
                                     );
-                                  } else if (card["title"] == "ارسال اسئله الامتحانيه الخاصه بالطلبة") {
+                                  } else if (card["title"].contains("ارسال اسئله الامتحانيه")) {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(builder: (_) => ExamQuestionsScreen()),

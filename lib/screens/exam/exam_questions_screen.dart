@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../pdf/pdf_upload_screen.dart';
 
 class ExamQuestionsScreen extends StatefulWidget {
   const ExamQuestionsScreen({Key? key}) : super(key: key);
@@ -28,7 +29,14 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
     'السادس ابتدائي',
   ];
   final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
-  final List<String> subjects = ['اللغة العربية', 'التربية الإسلامية'];
+  final List<String> subjects = [
+    'الرياضيات',
+    'العلوم',
+    'اللغة العربية',
+    'اللغة الإنجليزية',
+    'الدراسات الاجتماعية',
+    'الحاسوب',
+  ];
   // --- end selectors ---
   String? selectedClass;
   final List<String> classes = [
@@ -514,6 +522,9 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
     }
   }
 
+  bool showManualForm = false;
+  String? questionInputType; // 'manual' or 'pdf'
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -596,6 +607,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // --- selectors ---
+                        // (تظهر دائماً)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -616,6 +628,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
                                           selectedStage = null;
                                           selectedSection = null;
                                           selectedSubject = null;
+                                          questionInputType = null;
                                         });
                                       },
                                       child: AnimatedContainer(
@@ -676,6 +689,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
                                             selectedStage = stage;
                                             selectedSection = null;
                                             selectedSubject = null;
+                                            questionInputType = null;
                                           });
                                         },
                                         child: AnimatedContainer(
@@ -735,6 +749,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
                                           setState(() {
                                             selectedSection = section;
                                             selectedSubject = null;
+                                            questionInputType = null;
                                           });
                                         },
                                         child: AnimatedContainer(
@@ -782,6 +797,66 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
+                                children: classes.map((cls) {
+                                  final isSelected = selectedClass == cls;
+                                  return Container(
+                                    margin: const EdgeInsets.only(left: 12),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(25),
+                                        onTap: () {
+                                          setState(() {
+                                            selectedClass = cls;
+                                            selectedSubject = null;
+                                            questionInputType = null;
+                                          });
+                                        },
+                                        child: AnimatedContainer(
+                                          duration: const Duration(milliseconds: 200),
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                          decoration: BoxDecoration(
+                                            gradient: isSelected
+                                                ? const LinearGradient(
+                                                    colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                    begin: Alignment.centerRight,
+                                                    end: Alignment.centerLeft,
+                                                  )
+                                                : null,
+                                            color: isSelected ? null : Theme.of(context).cardColor,
+                                            borderRadius: BorderRadius.circular(25),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.1),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Text(
+                                            cls,
+                                            style: TextStyle(
+                                              color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        if (selectedClass != null)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
                                 children: subjects.map((subject) {
                                   final isSelected = selectedSubject == subject;
                                   return Container(
@@ -793,6 +868,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
                                         onTap: () {
                                           setState(() {
                                             selectedSubject = subject;
+                                            questionInputType = null;
                                           });
                                         },
                                         child: AnimatedContainer(
@@ -833,147 +909,233 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> {
                               ),
                             ),
                           ),
-                        // --- end selectors ---
-                        const SizedBox(height: 32),
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Color(0xFF1976D2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.quiz,
-                                color: Colors.white,
-                                size: 24,
-                              ),
+                        // --- نهاية الاختيارات ---
+
+                        // بعد اختيار المادة فقط تظهر خيارات نوع الأسئلة
+                        if (selectedSubject != null && questionInputType == null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.edit, color: Colors.white),
+                                    label: const Text('إنشاء الأسئلة يدويًا', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1976D2),
+                                      foregroundColor: Colors.white,
+                                      elevation: 4,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(25),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 18),
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        questionInputType = 'manual';
+                                      });
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 24),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                                    label: const Text('رفع ملف PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1976D2),
+                                      foregroundColor: Colors.white,
+                                      elevation: 4,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(25),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 18),
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        questionInputType = 'pdf';
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(width: 12),
-                            Text(
-                              'أنواع الأسئلة',
-                              style: TextStyle(
-                                color: Theme.of(context).textTheme.headlineSmall?.color ?? const Color(0xFF233A5A),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 22,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        // عرض الأسئلة والاختيارات بدون كرت
-                        ...questionTypes.map((type) {
-                          final typeValue = type['value'] as String;
-                          final questions = questionsByType[typeValue]!;
-                          final iconColor = type['iconColor'] as Color;
-                          return Column(
+                          ),
+
+                        // إذا اختار يدوي تظهر واجهة الأسئلة
+                        if (questionInputType == 'manual')
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Icon(type['icon'] as IconData, color: iconColor, size: 24),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    type['label'] as String,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                      color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '${questions.length} سؤال',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              ...List.generate(questions.length, (questionIndex) => Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.question_mark, color: iconColor, size: 16),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'سؤال ${questionIndex + 1}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                              const SizedBox(height: 24),
+                              ...questionTypes.map((type) {
+                                final typeValue = type['value'] as String;
+                                final questions = questionsByType[typeValue]!;
+                                final iconColor = type['iconColor'] as Color;
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(type['icon'] as IconData, color: iconColor, size: 24),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          type['label'] as String,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                            color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                          ),
                                         ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${questions.length} سؤال',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ...List.generate(questions.length, (questionIndex) => Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(Icons.question_mark, color: iconColor, size: 16),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'سؤال ${questionIndex + 1}',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                                color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            IconButton(
+                                              icon: Icon(Icons.delete, color: Colors.red[400], size: 20),
+                                              onPressed: () => _removeQuestion(typeValue, questionIndex),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        _buildQuestionInput(typeValue, questionIndex),
+                                        const SizedBox(height: 16),
+                                      ],
+                                    )),
+                                    Container(
+                                      width: double.infinity,
+                                      margin: const EdgeInsets.only(bottom: 24),
+                                      child: ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.transparent,
+                                          foregroundColor: iconColor,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                            side: BorderSide(color: iconColor, width: 2),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                        ),
+                                        icon: Icon(Icons.add_circle_outline, color: iconColor),
+                                        label: Text(
+                                          'إضافة سؤال ${type['label']}',
+                                          style: TextStyle(
+                                            color: iconColor,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        onPressed: () => _addQuestion(typeValue),
                                       ),
-                                      const Spacer(),
-                                      IconButton(
-                                        icon: Icon(Icons.delete, color: Colors.red[400], size: 20),
-                                        onPressed: () => _removeQuestion(typeValue, questionIndex),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _buildQuestionInput(typeValue, questionIndex),
-                                  const SizedBox(height: 16),
-                                ],
-                              )),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                              const SizedBox(height: 24),
                               Container(
                                 width: double.infinity,
-                                margin: const EdgeInsets.only(bottom: 24),
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    foregroundColor: iconColor,
-                                    elevation: 0,
+                                    backgroundColor: Color(0xFF1976D2),
+                                    foregroundColor: Colors.white,
+                                    elevation: 4,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      side: BorderSide(color: iconColor, width: 2),
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 20),
                                   ),
-                                  icon: Icon(Icons.add_circle_outline, color: iconColor),
-                                  label: Text(
-                                    'إضافة سؤال ${type['label']}',
+                                  icon: const Icon(Icons.send, color: Colors.white, size: 24),
+                                  label: const Text(
+                                    'إرسال الأسئلة',
                                     style: TextStyle(
-                                      color: iconColor,
+                                      color: Colors.white,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                                      fontSize: 18,
                                     ),
                                   ),
-                                  onPressed: () => _addQuestion(typeValue),
+                                  onPressed: _submit,
                                 ),
                               ),
                             ],
-                          );
-                        }).toList(),
-                        const SizedBox(height: 24),
-                        Container(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF1976D2),
-                              foregroundColor: Colors.white,
-                              elevation: 4,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 20),
-                            ),
-                            icon: Icon(Icons.send, color: Colors.white, size: 24),
-                            label: Text(
-                              'إرسال الأسئلة',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                            onPressed: _submit,
                           ),
-                        ),
+                        // إذا اختار PDF يظهر فقط حقل رفع PDF
+                        if (questionInputType == 'pdf')
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 12),
+                              child: Container(
+                                constraints: const BoxConstraints(maxWidth: 400),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).cardColor,
+                                  borderRadius: BorderRadius.circular(25),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 18),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.picture_as_pdf, color: Color(0xFF1976D2), size: 48),
+                                    const SizedBox(height: 18),
+                                    Text(
+                                      'رفع ملف PDF لأسئلة الامتحان',
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A)),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    ElevatedButton.icon(
+                                      icon: const Icon(Icons.upload_file, color: Colors.white),
+                                      label: const Text('اختر ملف PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF1976D2),
+                                        foregroundColor: Colors.white,
+                                        elevation: 4,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(25),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (_) => PdfUploadScreen()),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),

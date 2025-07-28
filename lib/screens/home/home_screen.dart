@@ -9,6 +9,7 @@ import '../exam/exam_questions_screen.dart';
 import '../tests/quick_tests_screen.dart';
 import '../grades/grades_screen.dart';
 import '../assignments/assignments_screen.dart';
+import '../Conferences/conferences_screen.dart';
 import '../../main.dart';
 import '../../utils/responsive_helper.dart';
 import '../../admin notifications/admin_notifications.dart';
@@ -137,20 +138,6 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  // أيقونة جانبية (إشعارات أو إعدادات)
-                  IconButton(
-                    icon: Icon(
-                      Icons.notifications_none,
-                      color: Colors.white, 
-                      size: ResponsiveHelper.getResponsiveIconSize(
-                        context,
-                        mobile: 28,
-                        tablet: 32,
-                        desktop: 36,
-                      ),
-                    ),
-                    onPressed: () {},
                   ),
                   // زر تبديل الوضع الليلي
                   IconButton(
@@ -466,6 +453,11 @@ class HomeScreenContent extends StatelessWidget {
                                       context,
                                       MaterialPageRoute(builder: (_) => AssignmentsScreen()),
                                     );
+                                  } else if (card["title"] == "الجلسات التعليمية") {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => ConferencesScreen()),
+                                    );
                                   }
                                 },
                                 child: Stack(
@@ -651,6 +643,15 @@ class HomePageContent {
       "hint": "مراسلة الطلاب بالأسئلة",
       "gradient":
           LinearGradient(colors: [Color(0xFF1A237E), Color(0xFFE040FB)]),
+    },
+    {
+      "title": "الجلسات التعليمية",
+      "icon": Icons.video_call,
+      "iconColor": Color(0xFFFF5722),
+      "iconBg": Color(0xFFFFCCBC),
+      "hint": "إدارة المحاضرات الافتراضية",
+      "gradient":
+          LinearGradient(colors: [Color(0xFFFF5722), Color(0xFFFF8A65)]),
     },
   ];
 }

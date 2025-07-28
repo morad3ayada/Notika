@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -21,6 +22,16 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Notika Teacher',
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: [
+            const Locale('ar', 'SA'),
+            const Locale('en', 'US'),
+          ],
+          locale: const Locale('ar', 'SA'),
           theme: ThemeData(
             primarySwatch: Colors.blue,
             brightness: Brightness.light,

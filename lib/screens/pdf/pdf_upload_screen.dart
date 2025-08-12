@@ -154,9 +154,10 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
-              child: Row(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  const Expanded(
+                  Center(
                     child: Text(
                       "رفع الملفات",
                       style: TextStyle(
@@ -164,13 +165,14 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 22,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 24),
-                    onPressed: () => Navigator.of(context).pop(),
+                  Positioned(
+                    right: 0,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
                   ),
                 ],
               ),

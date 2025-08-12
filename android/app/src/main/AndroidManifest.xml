@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="notika_teacher"
+        android:label="Notika Teacher"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

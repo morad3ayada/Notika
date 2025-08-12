@@ -41,9 +41,88 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (_selectedIndex != index) {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  // دالة محسنة لبناء عناصر البار السفلي
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isActive = _selectedIndex == index;
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _onItemTapped(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: isActive ? (ResponsiveHelper.isTablet(context) ? 16 : 12) : 8,
+            vertical: 8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFF1976D2)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF1976D2).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : [],
+                ),
+                padding: EdgeInsets.all(isActive ? (ResponsiveHelper.isTablet(context) ? 8 : 6) : 0),
+                child: Icon(
+                  icon,
+                  size: isActive 
+                      ? ResponsiveHelper.getResponsiveIconSize(context, mobile: 28, tablet: 32, desktop: 36)
+                      : ResponsiveHelper.getResponsiveIconSize(context, mobile: 24, tablet: 28, desktop: 32),
+                  color: isActive
+                      ? Colors.white
+                      : const Color(0xFF607D8B),
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: isActive
+                    ? Container(
+                        key: ValueKey(label),
+                        margin: EdgeInsets.only(top: ResponsiveHelper.isTablet(context) ? 4 : 2),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            color: const Color(0xFF1976D2),
+                            fontWeight: FontWeight.bold,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              mobile: 12,
+                              tablet: 14,
+                              desktop: 15,
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -167,113 +246,41 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
       ),
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(32),
-            topRight: Radius.circular(32),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(32),
+              topRight: Radius.circular(32),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(32),
-            topRight: Radius.circular(32),
-          ),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              color: Theme.of(context).cardColor.withValues(alpha: 0.75),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  vertical: ResponsiveHelper.isTablet(context) ? 14 : 10, 
-                  horizontal: ResponsiveHelper.isTablet(context) ? 24 : 18
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(5, (index) {
-                    final icons = [
-                      Icons.home,
-                      Icons.chat,
-                      Icons.schedule,
-                      Icons.campaign, // تبليغات
-                      Icons.person,
-                    ];
-                    final labels = [
-                      'الرئيسية',
-                      'المحادثات',
-                      'جدول الحصص',
-                      'تبليغات',
-                      'البروفايل',
-                    ];
-                    final isActive = _selectedIndex == index;
-                    return GestureDetector(
-                      onTap: () => _onItemTapped(index),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOut,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isActive ? (ResponsiveHelper.isTablet(context) ? 20 : 16) : 0
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 220),
-                              curve: Curves.easeOut,
-                              decoration: BoxDecoration(
-                                color: isActive
-                                    ? Colors.white
-                                    : Colors.transparent,
-                                shape: BoxShape.circle,
-                                boxShadow: isActive
-                                    ? [
-                                        BoxShadow(
-                                          color: Colors.black12,
-                                          blurRadius: 8,
-                                          offset: Offset(0, 2),
-                                        ),
-                                      ]
-                                    : [],
-                              ),
-                              padding: EdgeInsets.all(isActive ? (ResponsiveHelper.isTablet(context) ? 10 : 8) : 0),
-                              child: Icon(
-                                icons[index],
-                                size: isActive 
-                                    ? ResponsiveHelper.getResponsiveIconSize(context, mobile: 30, tablet: 34, desktop: 38)
-                                    : ResponsiveHelper.getResponsiveIconSize(context, mobile: 26, tablet: 30, desktop: 34),
-                                color: isActive
-                                    ? Color(0xFF1976D2)
-                                    : Color(0xFF607D8B),
-                              ),
-                            ),
-                            SizedBox(height: ResponsiveHelper.isTablet(context) ? 4 : 2),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 200),
-                              child: isActive
-                                  ? Text(
-                                      labels[index],
-                                      key: ValueKey(labels[index]),
-                                      style: TextStyle(
-                                        color: Color(0xFF1976D2),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                          context,
-                                          mobile: 13,
-                                          tablet: 15,
-                                          desktop: 16,
-                                        ),
-                                      ),
-                                    )
-                                  : const SizedBox.shrink(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ),
+          child: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.isTablet(context) ? 12 : 8, 
+                horizontal: ResponsiveHelper.isTablet(context) ? 24 : 18
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildNavItem(0, Icons.home, 'الرئيسية'),
+                  _buildNavItem(1, Icons.chat, 'المحادثات'),
+                  _buildNavItem(2, Icons.schedule, 'جدول الحصص'),
+                  _buildNavItem(3, Icons.campaign, 'تبليغات'),
+                  _buildNavItem(4, Icons.person, 'البروفايل'),
+                ],
               ),
             ),
           ),

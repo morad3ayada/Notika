@@ -20,6 +20,8 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   String? selectedStage;
   String? selectedSection;
   String? selectedSubject;
+  String? selectedUnit; // الفصل/الوحدة المختارة
+  final List<String> units = []; // قائمة الفصول/الوحدات التي ينشئها المستخدم
   final List<String> schools = [
     'مدرسة بغداد',
     'مدرسة الكوفة',
@@ -58,7 +60,8 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
     var status = await Permission.microphone.request();
     if (!status.isGranted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يجب السماح باستخدام الميكروفون')),);
+        const SnackBar(content: Text('يجب السماح باستخدام الميكروفون')),
+      );
       return;
     }
     final dir = await getTemporaryDirectory();
@@ -102,6 +105,110 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
     }
   }
 
+  Future<void> _openUnitSelector() async {
+    final controller = TextEditingController();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              top: 16,
+              right: 16,
+              left: 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'الفصل / الوحدة',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        decoration: InputDecoration(
+                          hintText: 'أضف خيارًا جديدًا (مثال: الفصل الأول)',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        final text = controller.text.trim();
+                        if (text.isNotEmpty && !units.contains(text)) {
+                          setState(() {
+                            units.add(text);
+                          });
+                          controller.clear();
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1976D2)),
+                      child: const Text('إضافة', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (units.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text('لا توجد خيارات بعد — قم بإضافة خيار بالأعلى.'),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: units.length,
+                      separatorBuilder: (_, __) => const Divider(height: 12),
+                      itemBuilder: (_, i) {
+                        final u = units[i];
+                        final isSelected = selectedUnit == u;
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(u),
+                          leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_off, color: const Color(0xFF1976D2)),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () {
+                              setState(() {
+                                if (selectedUnit == u) selectedUnit = null;
+                                units.removeAt(i);
+                              });
+                            },
+                          ),
+                          onTap: () {
+                            setState(() {
+                              selectedUnit = u;
+                            });
+                            Navigator.of(ctx).pop();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void submit() {
     if (selectedFile == null || selectedSchool == null || selectedStage == null || selectedSection == null || selectedSubject == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -121,6 +228,7 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
       selectedStage = null;
       selectedSection = null;
       selectedSubject = null;
+      selectedUnit = null;
       detailsController.clear();
     });
   }
@@ -200,326 +308,354 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
               textDirection: TextDirection.rtl,
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  padding: const EdgeInsets.only(top: 32, bottom: 32),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                  // اختيارات المدرسة والمرحلة والشعبة والمادة في الأعلى
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: schools.map((school) {
-                          final isSelected = selectedSchool == school;
-                          return Container(
-                            margin: const EdgeInsets.only(right: 12),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(25),
-                                onTap: () {
-                                  setState(() {
-                                    selectedSchool = school;
-                                    selectedStage = null;
-                                    selectedSection = null;
-                                    selectedSubject = null;
-                                  });
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    gradient: isSelected
-                                        ? const LinearGradient(
-                                            colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                            begin: Alignment.centerLeft,
-                                            end: Alignment.centerRight,
-                                          )
-                                        : null,
-                                    color: isSelected ? null : Theme.of(context).cardColor,
+                      // اختيارات المدرسة والمرحلة والشعبة والمادة في الأعلى
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.only(top: 8, bottom: 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: schools.map((school) {
+                              final isSelected = selectedSchool == school;
+                              return Container(
+                                margin: const EdgeInsets.only(right: 12),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
                                     borderRadius: BorderRadius.circular(25),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
+                                    onTap: () {
+                                      setState(() {
+                                        selectedSchool = school;
+                                        selectedStage = null;
+                                        selectedSection = null;
+                                        selectedSubject = null;
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        gradient: isSelected
+                                            ? const LinearGradient(
+                                                colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                begin: Alignment.centerLeft,
+                                                end: Alignment.centerRight,
+                                              )
+                                            : null,
+                                        color: isSelected ? null : Theme.of(context).cardColor,
+                                        borderRadius: BorderRadius.circular(25),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                      child: Text(
+                                        school,
+                                        style: TextStyle(
+                                          color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
                                   ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      if (selectedSchool != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.only(top: 8, bottom: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: stages.map((stage) {
+                                final isSelected = selectedStage == stage;
+                                return Container(
+                                  margin: const EdgeInsets.only(right: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedStage = stage;
+                                          selectedSection = null;
+                                          selectedSubject = null;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                  begin: Alignment.centerLeft,
+                                                  end: Alignment.centerRight,
+                                                )
+                                              : null,
+                                          color: isSelected ? null : Theme.of(context).cardColor,
+                                          borderRadius: BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          stage,
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      if (selectedStage != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.only(top: 8, bottom: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: sections.map((section) {
+                                final isSelected = selectedSection == section;
+                                return Container(
+                                  margin: const EdgeInsets.only(right: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedSection = section;
+                                          selectedSubject = null;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                  begin: Alignment.centerLeft,
+                                                  end: Alignment.centerRight,
+                                                )
+                                              : null,
+                                          color: isSelected ? null : Theme.of(context).cardColor,
+                                          borderRadius: BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          section,
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      if (selectedSection != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.only(top: 8, bottom: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: subjects.map((subject) {
+                                final isSelected = selectedSubject == subject;
+                                return Container(
+                                  margin: const EdgeInsets.only(right: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedSubject = subject;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                  begin: Alignment.centerLeft,
+                                                  end: Alignment.centerRight,
+                                                )
+                                              : null,
+                                          color: isSelected ? null : Theme.of(context).cardColor,
+                                          borderRadius: BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          subject,
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      if (selectedSubject != null) ...[
+                        const SizedBox(height: 20),
+                        // اختيار ملف (صورة/فيديو/PDF)
+                        GestureDetector(
+                          onTap: pickFile,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).cardColor,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                              border: Border.all(color: Color(0xFF1976D2), width: 1.2),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.attach_file, color: Color(0xFF1976D2), size: 32),
+                                const SizedBox(width: 14),
+                                Expanded(
                                   child: Text(
-                                    school,
+                                    selectedFile != null
+                                        ? selectedFile!.path.split(Platform.pathSeparator).last
+                                        : 'اختر ملف (PDF/صورة/فيديو)...',
                                     style: TextStyle(
-                                      color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
                                       fontSize: 16,
+                                      fontWeight: FontWeight.w600,
                                     ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // حقل الفصل/الوحدة (اختيارات يضيفها المستخدم)
+                        GestureDetector(
+                          onTap: _openUnitSelector,
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'الفصل / الوحدة',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              suffixIcon: const Icon(Icons.expand_more, color: Color(0xFF1976D2)),
+                            ),
+                            child: Text(
+                              selectedUnit ?? 'اختر الفصل/الوحدة أو أضف خيارًا جديدًا',
+                              style: TextStyle(
+                                color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                fontSize: 16,
                               ),
                             ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                  if (selectedSchool != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: stages.map((stage) {
-                            final isSelected = selectedStage == stage;
-                            return Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(25),
-                                  onTap: () {
-                                    setState(() {
-                                      selectedStage = stage;
-                                      selectedSection = null;
-                                      selectedSubject = null;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      gradient: isSelected
-                                          ? const LinearGradient(
-                                              colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                              begin: Alignment.centerLeft,
-                                              end: Alignment.centerRight,
-                                            )
-                                          : null,
-                                      color: isSelected ? null : Theme.of(context).cardColor,
-                                      borderRadius: BorderRadius.circular(25),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Text(
-                                      stage,
-                                      style: TextStyle(
-                                        color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                          ),
                         ),
-                      ),
-                    ),
-                  if (selectedStage != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: sections.map((section) {
-                            final isSelected = selectedSection == section;
-                            return Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(25),
-                                  onTap: () {
-                                    setState(() {
-                                      selectedSection = section;
-                                      selectedSubject = null;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      gradient: isSelected
-                                          ? const LinearGradient(
-                                              colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                              begin: Alignment.centerLeft,
-                                              end: Alignment.centerRight,
-                                            )
-                                          : null,
-                                      color: isSelected ? null : Theme.of(context).cardColor,
-                                      borderRadius: BorderRadius.circular(25),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Text(
-                                      section,
-                                      style: TextStyle(
-                                        color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                  if (selectedSection != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: subjects.map((subject) {
-                            final isSelected = selectedSubject == subject;
-                            return Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(25),
-                                  onTap: () {
-                                    setState(() {
-                                      selectedSubject = subject;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      gradient: isSelected
-                                          ? const LinearGradient(
-                                              colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                              begin: Alignment.centerLeft,
-                                              end: Alignment.centerRight,
-                                            )
-                                          : null,
-                                      color: isSelected ? null : Theme.of(context).cardColor,
-                                      borderRadius: BorderRadius.circular(25),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Text(
-                                      subject,
-                                      style: TextStyle(
-                                        color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                  if (selectedSubject != null) ...[
-                    const SizedBox(height: 20),
-                    // اختيار ملف (صورة/فيديو/PDF)
-                    GestureDetector(
-                      onTap: pickFile,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 10,
-                              offset: Offset(0, 4),
+                        const SizedBox(height: 16),
+                        // حقل تفاصيل أو رابط
+                        TextFormField(
+                          controller: detailsController,
+                          decoration: InputDecoration(
+                            labelText: 'تفاصيل أو رابط',
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
-                          ],
-                          border: Border.all(color: Color(0xFF1976D2), width: 1.2),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            prefixIcon: const Icon(Icons.link, color: Color(0xFF1976D2)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                          ),
+                          minLines: 1,
+                          maxLines: 3,
+                          keyboardType: TextInputType.multiline,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        const SizedBox(height: 16),
+                      ],
+                    
+                      // تسجيل صوتي داخل التطبيق
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
                           children: [
-                            const Icon(Icons.attach_file, color: Color(0xFF1976D2), size: 32),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Text(
-                                selectedFile != null
-                                    ? selectedFile!.path.split(Platform.pathSeparator).last
-                                    : 'اختر ملف (PDF/صورة/فيديو)...',
-                                style: TextStyle(
-                                  color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isRecording ? Colors.red : const Color(0xFF1976D2),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                                overflow: TextOverflow.ellipsis,
+                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // حقل تفاصيل أو رابط
-                    TextFormField(
-                      controller: detailsController,
-                      decoration: InputDecoration(
-                        labelText: 'تفاصيل أو رابط (اختياري)',
-                        hintText: 'اكتب أي ملاحظات أو ضع رابطًا هنا...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                        ),
-                        prefixIcon: const Icon(Icons.link, color: Color(0xFF1976D2)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                      ),
-                      minLines: 1,
-                      maxLines: 3,
-                      keyboardType: TextInputType.multiline,
-                    ),
-                    const SizedBox(height: 16),
-                    // تسجيل صوتي داخل التطبيق
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        children: [
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _isRecording ? Colors.red : const Color(0xFF1976D2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                            ),
                             icon: Icon(_isRecording ? Icons.stop : Icons.mic, color: Colors.white),
                             label: Text(_isRecording ? 'إيقاف التسجيل' : 'تسجيل صوتي', style: const TextStyle(color: Colors.white)),
                             onPressed: _isRecording ? stopRecording : startRecording,
@@ -561,13 +697,13 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                       ),
                       onPressed: submit,
                     ),
-                  ],
+                  
         ]),
               ),
             ),
           ),
-       ) ],
-      ),
+        ),
+      ]),
     );
   }
 }

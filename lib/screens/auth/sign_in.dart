@@ -94,16 +94,16 @@ class _SignInScreenState extends State<SignInScreen> {
                       
                       // عنوان الصفحة
                       Text(
-                        'مرحباً بك في',
+                        'مرحبًا بك في نظام نوتيكا لادارة الموسسات التعليمية',
                         style: TextStyle(
                           color: Theme.of(context).textTheme.headlineMedium?.color ?? const Color(0xFF233A5A),
                           fontWeight: FontWeight.w300,
-                          fontSize: 24,
+                          fontSize: 20,
                         ),
                         textAlign: TextAlign.center,
                       ),
                       Text(
-                        'نوتيكا للمعلمين',
+                        'تطبيق للمعلمين',
                         style: TextStyle(
                           color: Theme.of(context).textTheme.headlineMedium?.color ?? const Color(0xFF233A5A),
                           fontWeight: FontWeight.bold,
@@ -111,17 +111,17 @@ class _SignInScreenState extends State<SignInScreen> {
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'سجل دخولك لإدارة فصولك الدراسية',
-                        style: TextStyle(
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
-                          fontSize: 16,
+                        const SizedBox(height: 8),
+                        Text(
+                          'مؤسسة الانامل الواعدة الاهلية',
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.headlineMedium?.color ?? const Color(0xFF233A5A),
+                            fontWeight: FontWeight.w400,
+                            fontSize: 18,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 48),
-                      
+                        const SizedBox(height: 32),                      
                       // كارت تسجيل الدخول
                       Container(
                         padding: const EdgeInsets.all(32),
@@ -272,8 +272,17 @@ class _SignInScreenState extends State<SignInScreen> {
                       const SizedBox(height: 24),
                       
                       // معلومات إضافية
+                         Text(
+                        'نوتيكا لادارة الموسسات التعليمية ',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                   
                       Text(
-                        'تطبيق إدارة الفصول الدراسية للمعلمين',
+                        'من شركة الامواج الرقمية للحلول الذكيه',
                         style: TextStyle(
                           color: Theme.of(context).textTheme.bodySmall?.color,
                           fontSize: 14,

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../screens/home/home_screen.dart';
+import '../home/home_screen.dart';
 import 'dart:ui';
 
 class AdminNotificationsScreen extends StatelessWidget {
@@ -21,7 +21,9 @@ class AdminNotificationsScreen extends StatelessWidget {
         'body': 'تم إضافة مواد جديدة للمرحلة الابتدائية.'
       },
     ];
-    return Scaffold(
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       // No AppBar
@@ -41,10 +43,10 @@ class AdminNotificationsScreen extends StatelessWidget {
             painter: _GridPainter(),
           ),
           ListView.separated(
-            padding: EdgeInsets.only(
+            padding: EdgeInsetsDirectional.only(
               top: MediaQuery.of(context).padding.top + 24,
-              left: 18,
-              right: 18,
+              start: 18, // في RTL = يمين
+              end: 18,   // في RTL = يسار
               bottom: 32,
             ),
             itemCount: notifications.length,
@@ -52,6 +54,7 @@ class AdminNotificationsScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final notif = notifications[index];
               return Container(
+                alignment: Alignment.centerRight,
                 decoration: BoxDecoration(
                   color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(18),
@@ -64,33 +67,41 @@ class AdminNotificationsScreen extends StatelessWidget {
                   ],
                   border: Border.all(color: Color(0xFF1976D2), width: 1.1),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      notif['title']!,
-                      style: TextStyle(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white
-                            : Color(0xFF1976D2),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                padding: const EdgeInsetsDirectional.only(
+                  start: 18,  // RTL: يمين
+                  end: 10,    // RTL: يسار أقل
+                  top: 18,
+                  bottom: 18,
+                ),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart, // RTL: يبدأ من اليمين
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, // RTL: إلى اليمين
+                    children: [
+                      Text(
+                        notif['title']!,
+                        style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Color(0xFF1976D2),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                        textAlign: TextAlign.start,
                       ),
-                      textDirection: TextDirection.rtl,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      notif['body']!,
-                      style: TextStyle(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white
-                            : Color(0xFF233A5A),
-                        fontSize: 15.5,
+                      const SizedBox(height: 8),
+                      Text(
+                        notif['body']!,
+                        style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Color(0xFF233A5A),
+                          fontSize: 15.5,
+                        ),
+                        textAlign: TextAlign.start,
                       ),
-                      textDirection: TextDirection.rtl,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
@@ -98,6 +109,7 @@ class AdminNotificationsScreen extends StatelessWidget {
         ],
       ),
       // No bottomNavigationBar
+    ),
     );
   }
 }

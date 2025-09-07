@@ -121,7 +121,7 @@ class _GradesScreenState extends State<GradesScreen> {
                 // اختيار المدرسة
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -183,7 +183,7 @@ class _GradesScreenState extends State<GradesScreen> {
                 if (selectedSchool != null)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.only(top: 8, bottom: 8),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -244,7 +244,7 @@ class _GradesScreenState extends State<GradesScreen> {
                 if (selectedStage != null)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.only(top: 8, bottom: 8),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -304,7 +304,7 @@ class _GradesScreenState extends State<GradesScreen> {
                 if (selectedSection != null)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.only(top: 8, bottom: 8),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(

@@ -48,12 +48,9 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
   ];
   
   String? selectedClass;
-  static const List<String> classes = [
-    'الصف الأول',
-    'الصف الثاني',
-    'الصف الثالث',
-    'الصف الرابع',
-  ];
+  static const List<String> classes = [];
+  
+  // Removed all class options as per user request
 
   static const List<Map<String, dynamic>> questionTypes = [
     {
@@ -114,8 +111,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
     super.dispose();
   }
 
-  // دالة لاختيار ملف PDF
-  Future<void> _pickPdfFile() async {
+  // دالة لاختيار أي ملف
+  Future<void> _pickAnyFile() async {
     try {
       // إظهار مؤشر التحميل
       showDialog(
@@ -127,8 +124,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
       );
       
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        type: FileType.any,
         allowMultiple: false,
       );
       
@@ -141,7 +137,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           setState(() {
             selectedFile = file;
             isFileSelected = true;
-            questionInputType = 'pdf';
+            questionInputType = 'file';
           });
           
           ScaffoldMessenger.of(context).showSnackBar(
@@ -377,8 +373,10 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
               physics: const NeverScrollableScrollPhysics(),
               itemCount: question["options"].length,
               itemBuilder: (context, optionIndex) => Container(
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.only(bottom: 12, right: 4, left: 4), // Added horizontal margin
+                padding: const EdgeInsets.symmetric(horizontal: 4), // Added horizontal padding
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start, // Align items to start
                   children: [
                     Container(
                       decoration: BoxDecoration(
@@ -404,9 +402,13 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextFormField(
+                        maxLines: 2, // Allow multiple lines
+                        minLines: 1,
+                        textInputAction: TextInputAction.done,
                         decoration: InputDecoration(
                           labelText: 'اختيار ${optionIndex + 1}',
                           labelStyle: const TextStyle(color: Color(0xFF607D8B)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Added padding
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
@@ -688,7 +690,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
   }
 
   bool showManualForm = false;
-  String? questionInputType; // 'manual' or 'pdf'
+  String? questionInputType; // 'manual' or 'file'
   
   // متغيرات لإدارة الملف المختار
   PlatformFile? selectedFile;
@@ -779,7 +781,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
             SafeArea(
               child: SingleChildScrollView(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  padding: const EdgeInsets.only(top: 32, bottom: 32),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -978,14 +980,14 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         if (selectedSection != null)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: classes.map((cls) {
-                                  final isSelected = selectedClass == cls;
-                                  return Container(
-                                    margin: const EdgeInsets.only(left: 12),
+                            padding: EdgeInsets.zero,
+                            margin: EdgeInsets.zero,
+                            child: Row(
+                              children: classes.map((cls) {
+                                final isSelected = selectedClass == cls;
+                                return Expanded(
+                                  child: Container(
+                                    margin: EdgeInsets.zero,
                                     child: Material(
                                       color: Colors.transparent,
                                       child: InkWell(
@@ -1001,7 +1003,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                         },
                                         child: AnimatedContainer(
                                           duration: const Duration(milliseconds: 200),
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
                                           decoration: BoxDecoration(
                                             gradient: isSelected
                                                 ? const LinearGradient(
@@ -1027,20 +1029,22 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
                                             ),
+                                            textAlign: TextAlign.center,
                                             textDirection: TextDirection.rtl,
                                           ),
                                         ),
                                       ),
                                     ),
-                                  );
-                                }).toList(),
-                              ),
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ),
                         if (selectedClass != null)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            padding: const EdgeInsets.only(top: 8, bottom: 8),
+                            margin: EdgeInsets.zero,
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
@@ -1103,7 +1107,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         // بعد اختيار المادة فقط تظهر خيارات نوع الأسئلة
                         if (selectedSubject != null && questionInputType == null)
                           Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 24.0),
+                            padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 24.0),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -1132,8 +1136,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                 const SizedBox(width: 24),
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-                                    label: const Text('رفع ملف PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    icon: const Icon(Icons.insert_drive_file, color: Colors.white),
+                                    label: const Text('رفع ملف', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF1976D2),
                                       foregroundColor: Colors.white,
@@ -1143,7 +1147,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                       ),
                                       padding: const EdgeInsets.symmetric(vertical: 18),
                                     ),
-                                                                                                                onPressed: _pickPdfFile,
+                                    onPressed: _pickAnyFile,
                                   ),
                                 ),
                               ],
@@ -1277,8 +1281,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                               ),
                             ],
                           ),
-                        // إذا اختار PDF يظهر الملف المختار أو حقل رفع PDF
-                        if (questionInputType == 'pdf')
+                        // إذا اختار ملف يظهر الملف المختار أو حقل الرفع
+                        if (questionInputType == 'file')
                           Center(
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 12),
@@ -1301,16 +1305,16 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                   children: [
                                     if (!isFileSelected) ...[
                                       // حالة عدم اختيار ملف
-                                      const Icon(Icons.picture_as_pdf, color: Color(0xFF1976D2), size: 48),
+                                      const Icon(Icons.insert_drive_file, color: Color(0xFF1976D2), size: 48),
                                       const SizedBox(height: 18),
                                       Text(
-                                        'رفع ملف PDF لأسئلة الامتحان',
+                                        'رفع ملف لأسئلة الامتحان',
                                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A)),
                                       ),
                                       const SizedBox(height: 18),
                                       ElevatedButton.icon(
                                         icon: const Icon(Icons.upload_file, color: Colors.white),
-                                        label: const Text('اختر ملف PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                        label: const Text('اختر ملف', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: const Color(0xFF1976D2),
                                           foregroundColor: Colors.white,
@@ -1320,7 +1324,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           ),
                                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
                                         ),
-                                        onPressed: _pickPdfFile,
+                                        onPressed: _pickAnyFile,
                                       ),
                                     ] else ...[
                                       // حالة اختيار ملف
@@ -1333,7 +1337,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                         ),
                                         child: Column(
                                           children: [
-                                            const Icon(Icons.picture_as_pdf, color: Color(0xFF1976D2), size: 48),
+                                            const Icon(Icons.insert_drive_file, color: Color(0xFF1976D2), size: 48),
                                             const SizedBox(height: 16),
                                             Text(
                                               selectedFile!.name,
@@ -1391,7 +1395,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                                 ),
                                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                               ),
-                                              onPressed: _pickPdfFile,
+                                              onPressed: _pickAnyFile,
                                             ),
                                           ),
                                           const SizedBox(width: 16),

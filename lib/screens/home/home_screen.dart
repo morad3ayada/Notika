@@ -12,7 +12,7 @@ import '../assignments/assignments_screen.dart';
 import '../Conferences/conferences_screen.dart';
 import '../../main.dart';
 import '../../utils/responsive_helper.dart';
-import '../../admin notifications/admin_notifications.dart';
+import '../admin notifications/admin_notifications.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -278,7 +278,7 @@ class _MainScreenState extends State<MainScreen> {
                   _buildNavItem(0, Icons.home, 'الرئيسية'),
                   _buildNavItem(1, Icons.chat, 'المحادثات'),
                   _buildNavItem(2, Icons.schedule, 'جدول الحصص'),
-                  _buildNavItem(3, Icons.campaign, 'تبليغات'),
+                  _buildNavItem(3, Icons.campaign, 'التبليغات'),
                   _buildNavItem(4, Icons.person, 'البروفايل'),
                 ],
               ),
@@ -471,56 +471,51 @@ class HomeScreenContent extends StatelessWidget {
                                   clipBehavior: Clip.none,
                                   children: [
                                     Container(
+                                      height: 220, // Increased height to prevent overflow
+                                      width: double.infinity,
                                       decoration: BoxDecoration(
                                         color: Theme.of(context).cardColor,
                                         borderRadius: BorderRadius.circular(ResponsiveHelper.getBorderRadius(context)),
                                         boxShadow: ResponsiveHelper.getResponsiveShadow(context),
                                       ),
-                                      margin: EdgeInsets.only(top: ResponsiveHelper.isTablet(context) ? 36 : 28),
-                                      padding: EdgeInsets.only(
-                                        top: ResponsiveHelper.isTablet(context) ? 40 : 32, 
-                                        left: ResponsiveHelper.isTablet(context) ? 8 : 6, 
-                                        right: ResponsiveHelper.isTablet(context) ? 8 : 6, 
-                                        bottom: ResponsiveHelper.isTablet(context) ? 12 : 8
-                                      ),
-                                      child: SingleChildScrollView(
-                                        physics: NeverScrollableScrollPhysics(),
+                                      margin: EdgeInsets.only(top: 24),
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 8.0,
+                                          vertical: 16.0,
+                                        ),
                                         child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Text(
-                                              card["title"],
-                                              style: TextStyle(
-                                                color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                                  context,
-                                                  mobile: 15.5,
-                                                  tablet: 17.5,
-                                                  desktop: 19,
+                                            SizedBox(height: 18), // Space for the icon
+                                            Flexible(
+                                              child: Text(
+                                                card["title"],
+                                                style: TextStyle(
+                                                  color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13.5,
+                                                  height: 1.0,
                                                 ),
-                                                letterSpacing: 0.1,
+                                                textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                              textAlign: TextAlign.center,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            SizedBox(height: ResponsiveHelper.isTablet(context) ? 6 : 4),
-                                            Text(
-                                              card["hint"] ?? '',
-                                              style: TextStyle(
-                                                color: Color(0xFFB0BEC5),
-                                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                                  context,
-                                                  mobile: 12.5,
-                                                  tablet: 14.5,
-                                                  desktop: 15,
+                                            SizedBox(height: 20),
+                                            Flexible(
+                                              child: Text(
+                                                card["hint"] ?? '',
+                                                style: TextStyle(
+                                                  color: Color(0xFFB0BEC5),
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w400,
+                                                  height: 1.2,
                                                 ),
-                                                fontWeight: FontWeight.w400,
+                                                textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                              textAlign: TextAlign.center,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
                                         ),

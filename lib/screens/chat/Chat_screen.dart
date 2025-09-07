@@ -12,7 +12,9 @@ class ChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Stack(
       children: [
         // خلفية mesh/grid مثل الرئيسية
         Container(
@@ -30,7 +32,7 @@ class ChatScreen extends StatelessWidget {
         ),
         // قائمة الأشخاص
         ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
+          padding: const EdgeInsetsDirectional.symmetric(vertical: 18, horizontal: 14),
           itemCount: users.length,
           separatorBuilder: (_, __) => const SizedBox(height: 18),
           itemBuilder: (context, index) {
@@ -67,12 +69,12 @@ class ChatScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      padding: const EdgeInsets.only(right: 60, left: 16, top: 14, bottom: 14),
+                      padding: const EdgeInsetsDirectional.only(start: 60, end: 16, top: 14, bottom: 14),
                       child: Row(
                         children: [
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   user["name"]!,
@@ -81,7 +83,7 @@ class ChatScreen extends StatelessWidget {
                                     fontWeight: FontWeight.bold,
                                     fontSize: 17,
                                   ),
-                                  textDirection: TextDirection.rtl,
+                                  textAlign: TextAlign.start,
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
@@ -92,7 +94,7 @@ class ChatScreen extends StatelessWidget {
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  textDirection: TextDirection.rtl,
+                                  textAlign: TextAlign.start,
                                 ),
                               ],
                             ),
@@ -142,6 +144,7 @@ class ChatScreen extends StatelessWidget {
           },
         ),
       ],
+    ),
     );
   }
 }

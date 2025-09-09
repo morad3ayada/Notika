@@ -10,6 +10,8 @@ class ChatScreen extends StatelessWidget {
     {"name": "يوسف إبراهيم", "lastMessage": "تم الحضور اليوم", "avatar": "Y"},
   ];
 
+   ChatScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Directionality(

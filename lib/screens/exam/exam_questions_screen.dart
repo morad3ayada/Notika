@@ -3,7 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import '../pdf/pdf_upload_screen.dart';
 
 class ExamQuestionsScreen extends StatefulWidget {
-  const ExamQuestionsScreen({Key? key}) : super(key: key);
+  const ExamQuestionsScreen({super.key});
 
   @override
   State<ExamQuestionsScreen> createState() => _ExamQuestionsScreenState();
@@ -99,10 +99,6 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
   final Map<String, Widget> _cachedSelectors = {};
   final Map<String, Widget> _cachedQuestionInputs = {};
 
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   void dispose() {
@@ -1253,7 +1249,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                     ),
                                   ],
                                 );
-                              }).toList(),
+                              }),
                               const SizedBox(height: 24),
                               SizedBox(
                                 width: double.infinity,

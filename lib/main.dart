@@ -14,6 +14,8 @@ class MyApp extends StatelessWidget {
   // ValueNotifier لإدارة الثيم
   static final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -42,14 +44,13 @@ class MyApp extends StatelessWidget {
               titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             ),
             cardColor: Colors.white,
-            dialogBackgroundColor: Colors.white,
             canvasColor: Color(0xFFF5F7FA),
             textTheme: TextTheme(
               bodyLarge: TextStyle(color: Color(0xFF233A5A)),
               bodyMedium: TextStyle(color: Color(0xFF233A5A)),
               titleLarge: TextStyle(color: Color(0xFF233A5A)),
               titleMedium: TextStyle(color: Color(0xFF233A5A)),
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           darkTheme: ThemeData(
             primarySwatch: Colors.blue,
@@ -61,7 +62,6 @@ class MyApp extends StatelessWidget {
               titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             ),
             cardColor: Color(0xFF1A1F35),
-            dialogBackgroundColor: Color(0xFF1A1F35),
             canvasColor: Color(0xFF0A0E21),
             textTheme: TextTheme(
               bodyLarge: TextStyle(color: Colors.white),
@@ -74,12 +74,10 @@ class MyApp extends StatelessWidget {
               primary: Color(0xFF1976D2),
               secondary: Color(0xFF64B5F6),
               surface: Color(0xFF1A1F35),
-              background: Color(0xFF0A0E21),
               onPrimary: Colors.white,
               onSecondary: Colors.white,
               onSurface: Colors.white,
-              onBackground: Colors.white,
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: Color(0xFF1A1F35)),
           ),
           themeMode: currentMode,
           home: SignInScreen(),

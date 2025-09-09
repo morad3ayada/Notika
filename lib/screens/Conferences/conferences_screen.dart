@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../utils/responsive_helper.dart';
 
 class ConferencesScreen extends StatefulWidget {
   const ConferencesScreen({super.key});
@@ -9,6 +8,58 @@ class ConferencesScreen extends StatefulWidget {
 }
 
 class _ConferencesScreenState extends State<ConferencesScreen> {
+  String? selectedStage;
+  String? selectedSection;
+  
+  final List<String> stages = [
+    'الأول ابتدائي',
+    'الثاني ابتدائي',
+    'الثالث ابتدائي',
+    'الرابع ابتدائي',
+    'الخامس ابتدائي',
+    'السادس ابتدائي',
+  ];
+  
+  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
+
+  // Sample data for conferences
+  final List<Map<String, dynamic>> upcomingConferences = [
+    {
+      'title': 'اللغة العربية - الصف الأول',
+      'date': '2023-10-15',
+      'time': '14:30',
+      'duration': '60 دقيقة',
+      'meetingLink': 'https://meet.google.com/abc-xyz-123',
+    },
+    {
+      'title': 'التربية الإسلامية - الصف الثاني',
+      'date': '2023-10-16',
+      'time': '15:30',
+      'duration': '45 دقيقة',
+      'meetingLink': 'https://meet.google.com/def-uvw-456',
+    },
+  ];
+
+  final List<Map<String, dynamic>> pastConferences = [
+    {
+      'title': 'الرياضيات - الصف الثالث',
+      'date': '2023-10-10',
+      'time': '10:00',
+      'duration': '60 دقيقة',
+      'attended': true,
+      'meetingLink': 'https://meet.google.com/ghi-rst-789',
+    },
+    {
+      'title': 'العلوم - الصف الرابع',
+      'date': '2023-10-05',
+      'time': '11:30',
+      'duration': '45 دقيقة',
+      'attended': false,
+      'meetingLink': 'https://meet.google.com/jkl-mno-012',
+    },
+  ];
+
+  // Form controllers
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _dateController = TextEditingController();
@@ -18,27 +69,212 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
-  // اختيار المدرسة والمرحلة والشعبة والمادة
-  String? selectedSchool;
-  String? selectedStage;
-  String? selectedSection;
-  String? selectedSubject;
+  Widget _buildHorizontalSelector({
+    required List<String> items,
+    required String? selected,
+    required Function(String) onSelect,
+    required String label,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8, bottom: 4),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF233A5A),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: items.map((item) {
+              final isSelected = selected == item;
+              return Container(
+                margin: const EdgeInsets.only(left: 8),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(25),
+                    onTap: () => onSelect(item),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        gradient: isSelected
+                            ? const LinearGradient(
+                                colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              )
+                            : null,
+                        color: isSelected ? null : Colors.white,
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : const Color(0xFF233A5A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
 
-  final List<String> schools = [
-    'مدرسة بغداد',
-    'مدرسة الكوفة',
-    'مدرسة البصرة',
-  ];
-  final List<String> stages = [
-    'الأول ابتدائي',
-    'الثاني ابتدائي',
-    'الثالث ابتدائي',
-    'الرابع ابتدائي',
-    'الخامس ابتدائي',
-    'السادس ابتدائي',
-  ];
-  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
-  final List<String> subjects = ['اللغة العربية', 'التربية الإسلامية'];
+  void _showConferenceDetails(Map<String, dynamic> conference, bool isUpcoming) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Icon(
+                    Icons.videocam,
+                    color: isUpcoming ? Colors.blue : Colors.grey,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      conference['title'],
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildDetailRow(Icons.calendar_today, 'التاريخ', conference['date']),
+              const SizedBox(height: 12),
+              _buildDetailRow(Icons.access_time, 'الوقت', conference['time']),
+              const SizedBox(height: 12),
+              _buildDetailRow(Icons.timer_outlined, 'المدة', conference['duration']),
+              if (isUpcoming) ...[
+                const SizedBox(height: 12),
+                _buildDetailRow(Icons.link, 'رابط الاجتماع', conference['meetingLink'] ?? 'لم يتم إضافة رابط'),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // TODO: Implement join meeting
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1976D2),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'انضم إلى الجلسة',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.grey, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      conference['attended'] ? 'تمت المشاركة' : 'لم يتم المشاركة',
+                      style: TextStyle(
+                        color: conference['attended'] ? Colors.green : Colors.grey,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: Colors.grey, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 16,
+              ),
+              children: [
+                TextSpan(
+                  text: '$label: ',
+                ),
+                TextSpan(
+                  text: value,
+                  style: const TextStyle(
+                    color: Color(0xFF23459A), // Dark blue color for the value
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   void dispose() {
@@ -79,96 +315,368 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
     }
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      // هنا يمكن إضافة منطق حفظ البيانات
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم إنشاء الجلسة التعليمية بنجاح'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+  void _showAddConferenceDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Container(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              left: 20,
+              right: 20,
+              top: 20,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(25),
+                topRight: Radius.circular(25),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Text(
+                        'إنشاء جلسة جديدة',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1976D2),
+                        ),
+                      ),
+                      const SizedBox(width: 48), // For proper centering
+                    ],
+                  ),
+                ),
+                  const SizedBox(height: 20),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _titleController,
+                          decoration: InputDecoration(
+                            labelText: 'عنوان الجلسة',
+                            alignLabelWithHint: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                          ),
+                          textAlign: TextAlign.right,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'الرجاء إدخال عنوان الجلسة';
+                            }
+                            return null;
+                          },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildHorizontalSelector(
+                        items: stages,
+                        selected: selectedStage,
+                        onSelect: (value) {
+                          setState(() {
+                            selectedStage = value;
+                          });
+                        },
+                        label: 'المرحلة',
+                      ),
+                      const SizedBox(height: 16),
+                      _buildHorizontalSelector(
+                        items: sections,
+                        selected: selectedSection,
+                        onSelect: (value) {
+                          setState(() {
+                            selectedSection = value;
+                          });
+                        },
+                        label: 'الشعبة',
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _dateController,
+                        readOnly: true,
+                        onTap: () => _selectDate(context),
+                        decoration: InputDecoration(
+                          labelText: 'تاريخ الجلسة',
+                          alignLabelWithHint: true,
+                          suffixIcon: const Icon(Icons.calendar_today, color: Colors.grey),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                        ),
+                        textAlign: TextAlign.right,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'الرجاء اختيار تاريخ الجلسة';
+                          }
+                          return null;
+                        },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _timeController,
+                          readOnly: true,
+                          onTap: () => _selectTime(context),
+                          decoration: InputDecoration(
+                            labelText: 'وقت الجلسة',
+                            alignLabelWithHint: true,
+                            suffixIcon: const Icon(Icons.access_time, color: Colors.grey),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                          ),
+                          textAlign: TextAlign.right,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'الرجاء اختيار وقت الجلسة';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _durationController,
+                          decoration: InputDecoration(
+                            labelText: 'مدة الجلسة (بالدقائق)',
+                            alignLabelWithHint: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                          ),
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.right,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'الرجاء إدخال مدة الجلسة';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _meetingLinkController,
+                          decoration: InputDecoration(
+                            labelText: 'رابط الجلسة',
+                            alignLabelWithHint: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                          ),
+                          textAlign: TextAlign.right,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'الرجاء إدخال رابط الجلسة';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              if (_formKey.currentState!.validate()) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('تم إنشاء الجلسة بنجاح'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1976D2),
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'حفظ وإرسال',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
           ),
-        ),
-      );
-      Navigator.pop(context);
-    }
+        );
+      },
+    );
   }
 
-  Widget buildHorizontalSelector({
-    required List<String> items,
-    required String? selected,
-    required Function(String) onSelect,
-    String? label,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (label != null) ...[
-          Padding(
-            padding: const EdgeInsets.only(right: 8, bottom: 4),
-            child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: items.map((item) {
-              final isSelected = selected == item;
-              return Container(
-                margin: const EdgeInsets.only(right: 12),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(25),
-                    onTap: () => onSelect(item),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
-                      decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? const LinearGradient(
-                                colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              )
-                            : null,
-                        color: isSelected ? null : Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.color ??
-                                  const Color(0xFF233A5A),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+  Widget _buildConferenceCard(Map<String, dynamic> conference, {bool isUpcoming = true}) {
+    return GestureDetector(
+      onTap: () => _showConferenceDetails(conference, isUpcoming),
+      child: Card(
+        margin: const EdgeInsets.only(top: 16, left: 8, right: 8, bottom: 8),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.videocam,
+                  color: isUpcoming ? Colors.blue : Colors.grey,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    conference['title'],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text(
+                  conference['date'],
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+                const SizedBox(width: 16),
+                const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text(
+                  conference['time'],
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+                const Spacer(),
+                if (!isUpcoming)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: conference['attended'] ? Colors.green[100] : Colors.red[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      conference['attended'] ? 'حضر' : 'لم يحضر',
+                      style: TextStyle(
+                        color: conference['attended'] ? Colors.green[800] : Colors.red[800],
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.timer_outlined, size: 16, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text(
+                  conference['duration'],
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
                 ),
-              );
-            }).toList(),
-          ),
+                const Spacer(),
+                if (isUpcoming)
+                  ElevatedButton(
+                    onPressed: () {
+                      // TODO: Join conference
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: const Text('انضم الآن', style: TextStyle(color: Colors.white)),
+                  ),
+              ],
+            ),
+          ],
         ),
-      ],
-    );
+      ),
+    ));
   }
 
   @override
@@ -176,10 +684,8 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        extendBodyBehindAppBar: true,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: PreferredSize(
-          preferredSize: Size.fromHeight(ResponsiveHelper.isTablet(context) ? 100 : 80),
+          preferredSize: const Size.fromHeight(80),
           child: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -201,44 +707,26 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
             ),
             child: SafeArea(
               child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: ResponsiveHelper.isTablet(context) ? 24.0 : 18.0,
-                  vertical: ResponsiveHelper.isTablet(context) ? 12 : 8
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
+                child: Row(
                   children: [
-                    Center(
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
                       child: Text(
-                        "الجلسات التعليمية",
+                        'الجلسات التعليمية',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            mobile: 20,
-                            tablet: 24,
-                            desktop: 26,
-                          ),
+                          fontSize: 22,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                    Positioned(
-                      right: 0,
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.arrow_back_ios,
-                          color: Colors.white,
-                          size: ResponsiveHelper.getResponsiveIconSize(
-                            context,
-                            mobile: 24,
-                            tablet: 28,
-                            desktop: 32,
-                          ),
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
+                    const SizedBox(width: 48), // For centering the title
                   ],
                 ),
               ),
@@ -246,448 +734,161 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
           ),
         ),
         body: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Padding(
-            padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 24.0 : 18.0),
-            child: Column(
-              children: [
-                SizedBox(height: ResponsiveHelper.isTablet(context) ? 120 : 100),
-                
-                // بطاقة العنوان
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 16),
+              // Registration section
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF233A5A).withOpacity(0.3),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 24 : 20),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.video_call,
-                        size: ResponsiveHelper.getResponsiveIconSize(
-                          context,
-                          mobile: 48,
-                          tablet: 56,
-                          desktop: 64,
-                        ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.video_call,
+                      size: 48,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'إنشاء جلسة تعليمية جديدة',
+                      style: TextStyle(
                         color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      SizedBox(height: ResponsiveHelper.isTablet(context) ? 16 : 12),
-                      Text(
-                        "إنشاء جلسة تعليمية جديدة",
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'قم بإنشاء جلسة تعليمية جديدة للطلاب وحدد موعدها وروابط الاجتماع',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () => _showAddConferenceDialog(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF1976D2),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'إنشاء جلسة جديدة',
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            mobile: 18,
-                            tablet: 22,
-                            desktop: 24,
-                          ),
                           fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: ResponsiveHelper.isTablet(context) ? 8 : 6),
-                      Text(
-                        "أدخل تفاصيل الجلسة التعليمية",
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            mobile: 14,
-                            tablet: 16,
-                            desktop: 18,
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Upcoming Conferences Section with Horizontal Scroll
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.upcoming, color: Color(0xFF1976D2)),
+                        SizedBox(width: 8),
+                        Text(
+                          'الجلسات القادمة',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF333333),
                           ),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-                
-                SizedBox(height: ResponsiveHelper.isTablet(context) ? 32 : 24),
-                
-                // اختيارات المدرسة والمرحلة والشعبة والمادة
-                buildHorizontalSelector(
-                  items: schools,
-                  selected: selectedSchool,
-                  onSelect: (val) {
-                    setState(() {
-                      selectedSchool = val;
-                      selectedStage = null;
-                      selectedSection = null;
-                      selectedSubject = null;
-                    });
-                  },
-                  label: 'المدرسة',
-                ),
-                const SizedBox(height: 12),
-                if (selectedSchool != null)
-                  buildHorizontalSelector(
-                    items: stages,
-                    selected: selectedStage,
-                    onSelect: (val) {
-                      setState(() {
-                        selectedStage = val;
-                        selectedSection = null;
-                        selectedSubject = null;
-                      });
-                    },
-                    label: 'المرحلة',
-                  ),
-                if (selectedSchool != null) const SizedBox(height: 12),
-                if (selectedStage != null)
-                  buildHorizontalSelector(
-                    items: sections,
-                    selected: selectedSection,
-                    onSelect: (val) {
-                      setState(() {
-                        selectedSection = val;
-                        selectedSubject = null;
-                      });
-                    },
-                    label: 'الشعبة',
-                  ),
-                if (selectedStage != null) const SizedBox(height: 12),
-                if (selectedSection != null)
-                  buildHorizontalSelector(
-                    items: subjects,
-                    selected: selectedSubject,
-                    onSelect: (val) {
-                      setState(() {
-                        selectedSubject = val;
-                      });
-                    },
-                    label: 'المادة',
-                  ),
-                if (selectedSubject != null) ...[
-                  const SizedBox(height: 24),
-                  // نموذج إدخال البيانات
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 24 : 20),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // عنوان المحاضرة
-                          Text(
-                            "عنوان المحاضرة",
-                            style: TextStyle(
-                              color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                              fontWeight: FontWeight.bold,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                mobile: 16,
-                                tablet: 18,
-                                desktop: 20,
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: ResponsiveHelper.isTablet(context) ? 12 : 8),
-                          TextFormField(
-                            controller: _titleController,
-                            decoration: InputDecoration(
-                              hintText: "أدخل عنوان المحاضرة",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              prefixIcon: const Icon(Icons.title, color: Color(0xFF1976D2)),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'يرجى إدخال عنوان المحاضرة';
-                              }
-                              return null;
-                            },
-                          ),
-                          SizedBox(height: ResponsiveHelper.isTablet(context) ? 24 : 20),
-                          // رابط الميتنج
-                          Text(
-                            "رابط الجلسة (ميتنغ)",
-                            style: TextStyle(
-                              color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                              fontWeight: FontWeight.bold,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                mobile: 16,
-                                tablet: 18,
-                                desktop: 20,
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: ResponsiveHelper.isTablet(context) ? 12 : 8),
-                          TextFormField(
-                            controller: _meetingLinkController,
-                            decoration: InputDecoration(
-                              hintText: "ضع رابط الجلسة (Zoom, Google Meet ...)",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              prefixIcon: const Icon(Icons.link, color: Color(0xFF1976D2)),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'يرجى وضع رابط الجلسة';
-                              }
-                              return null;
-                            },
-                          ),
-                          SizedBox(height: ResponsiveHelper.isTablet(context) ? 24 : 20),
-                          // التاريخ والوقت في صف واحد
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "التاريخ",
-                                      style: TextStyle(
-                                        color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                          context,
-                                          mobile: 16,
-                                          tablet: 18,
-                                          desktop: 20,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(height: ResponsiveHelper.isTablet(context) ? 12 : 8),
-                                    TextFormField(
-                                      controller: _dateController,
-                                      readOnly: true,
-                                      onTap: () => _selectDate(context),
-                                      decoration: InputDecoration(
-                                        hintText: "اختر التاريخ",
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: BorderSide(color: Colors.grey.shade300),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: BorderSide(color: Colors.grey.shade300),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                                        ),
-                                        filled: true,
-                                        fillColor: Colors.grey.shade50,
-                                        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFF1976D2)),
-                                      ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'يرجى اختيار التاريخ';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(width: ResponsiveHelper.isTablet(context) ? 16 : 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "الوقت",
-                                      style: TextStyle(
-                                        color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                          context,
-                                          mobile: 16,
-                                          tablet: 18,
-                                          desktop: 20,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(height: ResponsiveHelper.isTablet(context) ? 12 : 8),
-                                    TextFormField(
-                                      controller: _timeController,
-                                      readOnly: true,
-                                      onTap: () => _selectTime(context),
-                                      decoration: InputDecoration(
-                                        hintText: "اختر الوقت",
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: BorderSide(color: Colors.grey.shade300),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: BorderSide(color: Colors.grey.shade300),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                                        ),
-                                        filled: true,
-                                        fillColor: Colors.grey.shade50,
-                                        prefixIcon: const Icon(Icons.access_time, color: Color(0xFF1976D2)),
-                                      ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'يرجى اختيار الوقت';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: ResponsiveHelper.isTablet(context) ? 24 : 20),
-                          // مدة المحاضرة
-                          Text(
-                            "مدة المحاضرة (بالدقائق)",
-                            style: TextStyle(
-                              color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                              fontWeight: FontWeight.bold,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                mobile: 16,
-                                tablet: 18,
-                                desktop: 20,
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: ResponsiveHelper.isTablet(context) ? 12 : 8),
-                          TextFormField(
-                            controller: _durationController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: "أدخل مدة المحاضرة بالدقائق",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              prefixIcon: const Icon(Icons.timer, color: Color(0xFF1976D2)),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'يرجى إدخال مدة المحاضرة';
-                              }
-                              if (int.tryParse(value) == null) {
-                                return 'يرجى إدخال رقم صحيح';
-                              }
-                              return null;
-                            },
-                          ),
-                          SizedBox(height: ResponsiveHelper.isTablet(context) ? 32 : 24),
-                          // زر إنشاء الجلسة
-                          SizedBox(
-                            width: double.infinity,
-                            height: ResponsiveHelper.isTablet(context) ? 56 : 50,
-                            child: ElevatedButton(
-                              onPressed: _submitForm,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1976D2),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 8,
-                                shadowColor: const Color(0xFF1976D2).withOpacity(0.3),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.video_call,
-                                    size: ResponsiveHelper.getResponsiveIconSize(
-                                      context,
-                                      mobile: 20,
-                                      tablet: 24,
-                                      desktop: 26,
-                                    ),
-                                  ),
-                                  SizedBox(width: ResponsiveHelper.isTablet(context) ? 12 : 8),
-                                  Text(
-                                    "إنشاء الجلسة التعليمية",
-                                    style: TextStyle(
-                                      fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                        context,
-                                        mobile: 16,
-                                        tablet: 18,
-                                        desktop: 20,
-                                      ),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 220,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: upcomingConferences.length,
+                        itemBuilder: (context, index) {
+                          return SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.85,
+                            child: _buildConferenceCard(upcomingConferences[index]),
+                          );
+                        },
                       ),
                     ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.isTablet(context) ? 32 : 24),
-                ],
-              ],
-            ),
+                  ],
+                ),
+              ),
+              
+              // Past Conferences Section
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.history, color: Colors.grey),
+                        SizedBox(width: 8),
+                        Text(
+                          'الجلسات السابقة',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      constraints: BoxConstraints(
+                        minHeight: MediaQuery.of(context).size.height * 0.3,
+                        maxHeight: MediaQuery.of(context).size.height * 0.5,
+                      ),
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        itemCount: pastConferences.length,
+                        itemBuilder: (context, index) {
+                          return _buildConferenceCard(
+                            pastConferences[index],
+                            isUpcoming: false,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-} 
+}

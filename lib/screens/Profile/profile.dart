@@ -11,6 +11,8 @@ class ProfileScreen extends StatelessWidget {
     {"name": "الثالث ابتدائي", "icon": Icons.looks_3, "color": Color(0xFFFFC107)},
   ];
 
+  ProfileScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Directionality(

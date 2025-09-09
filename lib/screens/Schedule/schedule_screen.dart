@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 class ScheduleScreen extends StatefulWidget {
-  const ScheduleScreen({Key? key}) : super(key: key);
+  const ScheduleScreen({super.key});
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
 }
@@ -149,7 +149,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
-    final isToday = (DateTime d) =>
+    bool isToday(DateTime d) =>
         d.year == today.year && d.month == today.month && d.day == today.day;
     return SafeArea(
       child: SingleChildScrollView(

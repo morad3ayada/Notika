@@ -3,7 +3,7 @@ import 'responsive_helper.dart';
 
 /// مثال على كيفية استخدام ResponsiveHelper في صفحات أخرى
 class ResponsiveExampleScreen extends StatelessWidget {
-  const ResponsiveExampleScreen({Key? key}) : super(key: key);
+  const ResponsiveExampleScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -289,13 +289,13 @@ class ResponsiveCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ResponsiveCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.color,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

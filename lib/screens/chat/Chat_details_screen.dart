@@ -4,7 +4,7 @@ import 'Chat_screen.dart';
 class ChatDetailsScreen extends StatelessWidget {
   final String userName;
   final String avatar;
-  const ChatDetailsScreen({Key? key, required this.userName, required this.avatar}) : super(key: key);
+  const ChatDetailsScreen({super.key, required this.userName, required this.avatar});
 
   @override
   Widget build(BuildContext context) {

@@ -3,7 +3,7 @@ import '../home/home_screen.dart';
 import 'dart:ui';
 
 class AdminNotificationsScreen extends StatelessWidget {
-  const AdminNotificationsScreen({Key? key}) : super(key: key);
+  const AdminNotificationsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +117,7 @@ class AdminNotificationsScreen extends StatelessWidget {
 // ثابت: بار سفلي متوافق مع المشروع
 class MainScreenBottomBar extends StatelessWidget {
   final int selectedIndex;
-  const MainScreenBottomBar({Key? key, required this.selectedIndex}) : super(key: key);
+  const MainScreenBottomBar({super.key, required this.selectedIndex});
 
   @override
   Widget build(BuildContext context) {

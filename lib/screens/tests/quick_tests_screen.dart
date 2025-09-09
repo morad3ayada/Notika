@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class QuickTestsScreen extends StatefulWidget {
-  const QuickTestsScreen({Key? key}) : super(key: key);
+  const QuickTestsScreen({super.key});
 
   @override
   State<QuickTestsScreen> createState() => _QuickTestsScreenState();
@@ -292,7 +292,7 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
                       ],
                     ),
                   )),
-                  Container(
+                  SizedBox(
                     width: double.infinity,
                     child: TextButton.icon(
                       onPressed: () => _addOption(type, questionIndex),
@@ -1030,7 +1030,7 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
                         );
                       }),
                       const SizedBox(height: 24),
-                      Container(
+                      SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(

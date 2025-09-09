@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../home/home_screen.dart';
 
 class AssignmentsScreen extends StatefulWidget {
-  const AssignmentsScreen({Key? key}) : super(key: key);
+  const AssignmentsScreen({super.key});
 
   @override
   State<AssignmentsScreen> createState() => _AssignmentsScreenState();

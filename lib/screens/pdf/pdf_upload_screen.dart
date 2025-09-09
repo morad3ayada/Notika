@@ -7,7 +7,7 @@ import 'dart:math';
 import 'package:permission_handler/permission_handler.dart';
 
 class PdfUploadScreen extends StatefulWidget {
-  const PdfUploadScreen({Key? key}) : super(key: key);
+  const PdfUploadScreen({super.key});
 
   @override
   State<PdfUploadScreen> createState() => _PdfUploadScreenState();

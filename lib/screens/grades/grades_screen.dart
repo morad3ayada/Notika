@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class GradesScreen extends StatefulWidget {
-  const GradesScreen({Key? key}) : super(key: key);
+  const GradesScreen({super.key});
 
   @override
   State<GradesScreen> createState() => _GradesScreenState();

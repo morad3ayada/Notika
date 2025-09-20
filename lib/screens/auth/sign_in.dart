@@ -1,4 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../services/auth_service.dart';
+import '../../utils/network_utils.dart';
+import 'package:http/http.dart' as http;
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -9,32 +17,96 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _isConnected = true;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkConnectivity();
+    _connectivitySubscription = NetworkUtils.onConnectivityChanged.listen((result) {
+      setState(() {
+        _isConnected = result != ConnectivityResult.none;
+      });
+    });
+  }
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
+  Future<void> _checkConnectivity() async {
+    final isConnected = await NetworkUtils.isConnected();
+    if (mounted) {
+      setState(() {
+        _isConnected = isConnected;
+      });
+    }
+  }
+
   void _signIn() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (!_isConnected) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('لا يوجد اتصال بالإنترنت. يرجى التحقق من الاتصال والمحاولة مرة أخرى.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
-    // محاكاة عملية تسجيل الدخول
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final authService = AuthService();
+      final response = await authService.login(
+        _usernameController.text.trim(),
+        _passwordController.text,
+      );
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    // الانتقال للصفحة الرئيسية
-    Navigator.of(context).pushReplacementNamed('/home');
+      // If we have a token, navigate to home
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+      
+      // Show success message if available
+      if (response.message != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.message!)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -122,6 +194,32 @@ class _SignInScreenState extends State<SignInScreen> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 32),                      
+                      // Connection status indicator
+                      if (!_isConnected)
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.signal_wifi_off, color: Colors.red),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'غير متصل بالإنترنت',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: _checkConnectivity,
+                                child: const Text('إعادة المحاولة'),
+                              ),
+                            ],
+                          ),
+                        ),
                       // كارت تسجيل الدخول
                       Container(
                         padding: const EdgeInsets.all(32),
@@ -139,21 +237,21 @@ class _SignInScreenState extends State<SignInScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // حقل البريد الإلكتروني
+                            // حقل اسم المستخدم
                             Container(
                               margin: const EdgeInsets.only(bottom: 20),
                               child: TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
+                                controller: _usernameController,
+                                keyboardType: TextInputType.text,
                                 style: TextStyle(
                                   color: Theme.of(context).textTheme.bodyMedium?.color,
                                 ),
                                 decoration: InputDecoration(
-                                  labelText: 'البريد الإلكتروني',
+                                  labelText: 'اسم المستخدم',
                                   labelStyle: TextStyle(
                                     color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
                                   ),
-                                  prefixIcon: const Icon(Icons.email, color: Color(0xFF1976D2)),
+                                  prefixIcon: const Icon(Icons.person, color: Color(0xFF1976D2)),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
                                     borderSide: BorderSide(color: Color(0xFFE0E0E0)),
@@ -171,10 +269,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 ),
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
-                                    return 'أدخل البريد الإلكتروني';
-                                  }
-                                  if (!value.contains('@')) {
-                                    return 'أدخل بريد إلكتروني صحيح';
+                                    return 'أدخل اسم المستخدم';
                                   }
                                   return null;
                                 },
@@ -256,12 +351,21 @@ class _SignInScreenState extends State<SignInScreen> {
                                           strokeWidth: 2,
                                         ),
                                       )
-                                    : const Text(
-                                        'تسجيل الدخول',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          if (!_isConnected) ...[
+                                            const Icon(Icons.signal_wifi_off, size: 20),
+                                            const SizedBox(width: 8),
+                                          ],
+                                          const Text(
+                                            'تسجيل الدخول',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                               ),
                             ),

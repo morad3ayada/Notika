@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'Chat_screen.dart';
 
 class ChatDetailsScreen extends StatelessWidget {
   final String userName;

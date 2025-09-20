@@ -13,6 +13,144 @@ class PdfUploadScreen extends StatefulWidget {
   State<PdfUploadScreen> createState() => _PdfUploadScreenState();
 }
 
+class _DeleteConfirmationDialog extends StatefulWidget {
+  final String unitName;
+  final Function(bool) onConfirm;
+
+  const _DeleteConfirmationDialog({
+    super.key,
+    required this.unitName,
+    required this.onConfirm,
+  });
+
+  @override
+  _DeleteConfirmationDialogState createState() => _DeleteConfirmationDialogState();
+}
+
+class _DeleteConfirmationDialogState extends State<_DeleteConfirmationDialog> {
+  final TextEditingController _controller = TextEditingController();
+  bool _isConfirmed = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          top: 24,
+          left: 16,
+          right: 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'تأكيد حذف الوحدة/الفصل',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF233A5A),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'لحذف "${widget.unitName}" يرجى كتابة الاسم للتأكيد',
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onChanged: (value) {
+                setState(() {
+                  _isConfirmed = value == widget.unitName;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'اكتب "${widget.unitName}"',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: const BorderSide(color: Color(0xFFE0E0E0)),
+                    ),
+                    child: const Text(
+                      'إلغاء',
+                      style: TextStyle(
+                        color: Color(0xFF233A5A),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isConfirmed
+                        ? () {
+                            widget.onConfirm(true);
+                            Navigator.pop(context, true);
+                          }
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1976D2),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'تأكيد الحذف',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PdfUploadScreenState extends State<PdfUploadScreen> {
   File? selectedFile;
   File? selectedAudio;
@@ -107,105 +245,173 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
 
   Future<void> _openUnitSelector() async {
     final controller = TextEditingController();
+    final localUnits = List<String>.from(units);
+    String? localSelectedUnit = selectedUnit;
+    
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              top: 16,
-              right: 16,
-              left: 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'الفصل / الوحدة',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        decoration: InputDecoration(
-                          hintText: 'أضف خيارًا جديدًا (مثال: الفصل الأول)',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Directionality(
+            textDirection: TextDirection.rtl,
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                top: 16,
+                right: 16,
+                left: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'الفصل / الوحدة',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          decoration: InputDecoration(
+                            hintText: 'أضف خيارًا جديدًا (مثال: الفصل الأول)',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          final text = controller.text.trim();
+                          if (text.isNotEmpty && !localUnits.contains(text)) {
+                            setModalState(() {
+                              localUnits.add(text);
+                              localSelectedUnit = text;
+                            });
+                            controller.clear();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1976D2)),
+                        child: const Text('إضافة', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (localUnits.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text('لا توجد خيارات بعد — قم بإضافة خيار بالأعلى.'),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: localUnits.length,
+                        separatorBuilder: (_, __) => const Divider(height: 12),
+                        itemBuilder: (_, i) {
+                          final u = localUnits[i];
+                          final isSelected = localSelectedUnit == u;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(u),
+                            leading: Icon(
+                              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                              color: const Color(0xFF1976D2),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () async {
+                                bool? deleteConfirmed = await showModalBottomSheet<bool>(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                  ),
+                                  builder: (deleteCtx) => _DeleteConfirmationDialog(
+                                    unitName: u,
+                                    onConfirm: (confirmed) {
+                                      if (confirmed) {
+                                        setModalState(() {
+                                          localUnits.removeAt(i);
+                                          if (localSelectedUnit == u) {
+                                            localSelectedUnit = localUnits.isNotEmpty ? localUnits[0] : null;
+                                          }
+                                        });
+                                      }
+                                      return confirmed;
+                                    },
+                                  ),
+                                );
+
+                                if (deleteConfirmed == true && mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('تم الحذف بنجاح'),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            onTap: () {
+                              setModalState(() {
+                                localSelectedUnit = u;
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          units.clear();
+                          units.addAll(localUnits);
+                          if (localSelectedUnit != selectedUnit) {
+                            selectedUnit = localSelectedUnit;
+                          }
+                        });
+                        Navigator.of(ctx).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1976D2),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'حفظ التغييرات',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        final text = controller.text.trim();
-                        if (text.isNotEmpty && !units.contains(text)) {
-                          setState(() {
-                            units.add(text);
-                          });
-                          controller.clear();
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1976D2)),
-                      child: const Text('إضافة', style: TextStyle(color: Colors.white)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (units.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text('لا توجد خيارات بعد — قم بإضافة خيار بالأعلى.'),
-                  )
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: units.length,
-                      separatorBuilder: (_, __) => const Divider(height: 12),
-                      itemBuilder: (_, i) {
-                        final u = units[i];
-                        final isSelected = selectedUnit == u;
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(u),
-                          leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_off, color: const Color(0xFF1976D2)),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () {
-                              setState(() {
-                                if (selectedUnit == u) selectedUnit = null;
-                                units.removeAt(i);
-                              });
-                            },
-                          ),
-                          onTap: () {
-                            setState(() {
-                              selectedUnit = u;
-                            });
-                            Navigator.of(ctx).pop();
-                          },
-                        );
-                      },
-                    ),
                   ),
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -588,56 +794,125 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // حقل الفصل/الوحدة (اختيارات يضيفها المستخدم)
+                        // حقل الفصل/الوحدة (بتصميم مشابه لزر رفع الملف)
                         GestureDetector(
                           onTap: _openUnitSelector,
-                          child: InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: 'الفصل / الوحدة',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                              suffixIcon: const Icon(Icons.expand_more, color: Color(0xFF1976D2)),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).cardColor,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                              border: Border.all(color: const Color(0xFF1976D2), width: 1.2),
                             ),
-                            child: Text(
-                              selectedUnit ?? 'اختر الفصل/الوحدة أو أضف خيارًا جديدًا',
-                              style: TextStyle(
-                                color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                fontSize: 16,
-                              ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.book_outlined, color: Color(0xFF1976D2), size: 28),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'الفصل / الوحدة',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        selectedUnit ?? 'اضغط لإضافة أو اختيار فصل/وحدة',
+                                        style: TextStyle(
+                                          color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_forward_ios, size: 16, color: Color(0xFF1976D2)),
+                              ],
                             ),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // حقل تفاصيل أو رابط
-                        TextFormField(
-                          controller: detailsController,
-                          decoration: InputDecoration(
-                            labelText: 'تفاصيل أو رابط',
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                        
+                        // حقل التفاصيل أو الرابط (بتصميم مشابه لزر رفع الملف)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                            border: Border.all(
+                              color: const Color(0xFF1976D2),
+                              width: 1.2,
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                            ),
-                            prefixIcon: const Icon(Icons.link, color: Color(0xFF1976D2)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                           ),
-                          minLines: 1,
-                          maxLines: 3,
-                          keyboardType: TextInputType.multiline,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(right: 16, top: 12, left: 16),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.link, color: Color(0xFF1976D2), size: 24),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'تفاصيل أو رابط',
+                                      style: TextStyle(
+                                        color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(16).copyWith(top: 8),
+                                child: TextFormField(
+                                  controller: detailsController,
+                                  decoration: InputDecoration(
+                                    hintText: 'أدخل وصفًا أو رابطًا إضافيًا...',
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                    filled: true,
+                                    fillColor: Theme.of(context).brightness == Brightness.dark
+                                        ? Colors.grey[900]
+                                        : Colors.grey[100],
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Color(0xFF1976D2), width: 1.5),
+                                    ),
+                                  ),
+                                  minLines: 3,
+                                  maxLines: 5,
+                                  keyboardType: TextInputType.multiline,
+                                  style: const TextStyle(fontSize: 15),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                       ],

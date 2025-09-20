@@ -47,8 +47,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
     'الحاسوب',
   ];
   
-  String? selectedClass;
-  static const List<String> classes = [];
+  // Removed selectedClass as it's no longer needed
+  // Removed class selection as per user request
   
   // Removed all class options as per user request
 
@@ -252,9 +252,9 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
   void _submit() {
     if (!mounted) return;
     
-    if (selectedClass == null) {
+    if (selectedSubject == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى اختيار الفصل'), duration: Duration(seconds: 1)),
+        const SnackBar(content: Text('يرجى اختيار المادة'), duration: Duration(seconds: 1)),
       );
       return;
     }
@@ -273,7 +273,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('تم إرسال $totalQuestions سؤال للفصل $selectedClass'),
+        content: Text('تم إرسال $totalQuestions سؤال لـ $selectedSubject'),
         backgroundColor: const Color(0xFF43A047),
         duration: const Duration(seconds: 1),
       ),
@@ -974,69 +974,6 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                             ),
                           ),
                         if (selectedSection != null)
-                          Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.zero,
-                            margin: EdgeInsets.zero,
-                            child: Row(
-                              children: classes.map((cls) {
-                                final isSelected = selectedClass == cls;
-                                return Expanded(
-                                  child: Container(
-                                    margin: EdgeInsets.zero,
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(25),
-                                        onTap: () {
-                                          if (mounted) {
-                                            setState(() {
-                                              selectedClass = cls;
-                                              selectedSubject = null;
-                                              questionInputType = null;
-                                            });
-                                          }
-                                        },
-                                        child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                          decoration: BoxDecoration(
-                                            gradient: isSelected
-                                                ? const LinearGradient(
-                                                    colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                    begin: Alignment.centerRight,
-                                                    end: Alignment.centerLeft,
-                                                  )
-                                                : null,
-                                            color: isSelected ? null : Theme.of(context).cardColor,
-                                            borderRadius: BorderRadius.circular(25),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withOpacity(0.1),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Text(
-                                            cls,
-                                            style: TextStyle(
-                                              color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                            textDirection: TextDirection.rtl,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        if (selectedClass != null)
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.only(top: 8, bottom: 8),

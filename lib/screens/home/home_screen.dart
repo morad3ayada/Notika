@@ -12,6 +12,8 @@ import '../Conferences/conferences_screen.dart';
 import '../../main.dart';
 import '../../utils/responsive_helper.dart';
 import '../admin notifications/admin_notifications.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -30,14 +32,37 @@ class _MainScreenState extends State<MainScreen> {
     _selectedIndex = widget.initialIndex;
   }
 
-  // صفحات البار السفلي (يمكنك استبدالها لاحقًا بصفحات حقيقية)
-  static final List<Widget> _pages = <Widget>[
-    HomeScreenContent(),
-    ChatScreen(),
-    ScheduleScreen(),
-    AdminNotificationsScreen(),
-    ProfileScreen(),
-  ];
+  // صفحات البار السفلي
+  List<Widget> _buildPages(UserProvider userProvider) {
+    final userProfile = userProvider.userProfile;
+    final profileData = userProfile != null ? ProfileData(
+      userId: userProfile.userId,
+      userName: userProfile.userName,
+      userType: userProfile.userType,
+      fullName: userProfile.fullName,
+      firstName: userProfile.firstName,
+      secondName: userProfile.secondName,
+      thirdName: userProfile.thirdName,
+      fourthName: userProfile.fourthName,
+      phone: userProfile.phone ?? '',
+    ) : ProfileData(
+      userId: '',
+      userName: '',
+      userType: '',
+      fullName: 'مستخدم',
+      firstName: '',
+      secondName: '',
+      phone: '',
+    );
+
+    return <Widget>[
+      HomeScreenContent(),
+      ChatScreen(),
+      ScheduleScreen(),
+      AdminNotificationsScreen(),
+      ProfileScreen(profile: profileData),
+    ];
+  }
 
   void _onItemTapped(int index) {
     if (_selectedIndex != index) {
@@ -126,165 +151,169 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(ResponsiveHelper.isTablet(context) ? 100 : 80),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(32),
-              bottomRight: Radius.circular(32),
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: ResponsiveHelper.isTablet(context) ? 24.0 : 18.0, 
-                vertical: ResponsiveHelper.isTablet(context) ? 12 : 8
-              ),
-              child: Row(
-                children: [
-                  // شعار في دائرة بيضاء مع ظل
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 8 : 6),
-                    child: Image.asset(
-                      'assets/notika_logo.png', 
-                      height: ResponsiveHelper.isTablet(context) ? 48 : 38
-                    ),
+    return Consumer<UserProvider>(
+      builder: (context, userProvider, _) {
+        return Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: PreferredSize(
+            preferredSize: Size.fromHeight(ResponsiveHelper.isTablet(context) ? 100 : 80),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
                   ),
-                  SizedBox(width: ResponsiveHelper.isTablet(context) ? 18 : 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "مؤسسة نوتيكا التعليمية",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(
-                              context,
-                              mobile: 18,
-                              tablet: 22,
-                              desktop: 24,
-                            ),
-                            letterSpacing: 0.2,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          "ابتدائية - ثانوية بنين - ثانوية بنات",
-                          style: TextStyle(
-                            color: Color(0xFFB0BEC5),
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(
-                              context,
-                              mobile: 11,
-                              tablet: 13,
-                              desktop: 14,
-                            ),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ],
-                    ),
+                ],
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ResponsiveHelper.isTablet(context) ? 24.0 : 18.0, 
+                    vertical: ResponsiveHelper.isTablet(context) ? 12 : 8
                   ),
-                  // زر تبديل الوضع الليلي
-                  IconButton(
-                    icon: Icon(
-                      MyApp.themeNotifier.value == ThemeMode.dark
-                          ? Icons.wb_sunny_outlined
-                          : Icons.nightlight_round,
-                      color: Colors.white,
-                      size: ResponsiveHelper.getResponsiveIconSize(
-                        context,
-                        mobile: 26,
-                        tablet: 30,
-                        desktop: 34,
+                  child: Row(
+                    children: [
+                      // شعار في دائرة بيضاء مع ظل
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 8 : 6),
+                        child: Image.asset(
+                          'assets/notika_logo.png', 
+                          height: ResponsiveHelper.isTablet(context) ? 48 : 38
+                        ),
                       ),
-                    ),
-                    tooltip: MyApp.themeNotifier.value == ThemeMode.dark ? 'وضع النهار' : 'وضع الليل',
-                    onPressed: () {
-                      MyApp.themeNotifier.value =
+                      SizedBox(width: ResponsiveHelper.isTablet(context) ? 18 : 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "مؤسسة نوتيكا التعليمية",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                  context,
+                                  mobile: 18,
+                                  tablet: 22,
+                                  desktop: 24,
+                                ),
+                                letterSpacing: 0.2,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              "ابتدائية - ثانوية بنين - ثانوية بنات",
+                              style: TextStyle(
+                                color: Color(0xFFB0BEC5),
+                                fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                  context,
+                                  mobile: 11,
+                                  tablet: 13,
+                                  desktop: 14,
+                                ),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                      // زر تبديل الوضع الليلي
+                      IconButton(
+                        icon: Icon(
                           MyApp.themeNotifier.value == ThemeMode.dark
-                              ? ThemeMode.light
-                              : ThemeMode.dark;
-                    },
+                              ? Icons.wb_sunny_outlined
+                              : Icons.nightlight_round,
+                          color: Colors.white,
+                          size: ResponsiveHelper.getResponsiveIconSize(
+                            context,
+                            mobile: 26,
+                            tablet: 30,
+                            desktop: 34,
+                          ),
+                        ),
+                        tooltip: MyApp.themeNotifier.value == ThemeMode.dark ? 'وضع النهار' : 'وضع الليل',
+                        onPressed: () {
+                          MyApp.themeNotifier.value =
+                              MyApp.themeNotifier.value == ThemeMode.dark
+                                  ? ThemeMode.light
+                                  : ThemeMode.dark;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: _buildPages(userProvider),
+          ),
+          bottomNavigationBar: RepaintBoundary(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(32),
+                  topRight: Radius.circular(32),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
                   ),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: RepaintBoundary(
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(32),
-              topRight: Radius.circular(32),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                vertical: ResponsiveHelper.isTablet(context) ? 12 : 8, 
-                horizontal: ResponsiveHelper.isTablet(context) ? 24 : 18
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildNavItem(0, Icons.home, 'الرئيسية'),
-                  _buildNavItem(1, Icons.chat, 'المحادثات'),
-                  _buildNavItem(2, Icons.schedule, 'جدول الحصص'),
-                  _buildNavItem(3, Icons.campaign, 'التبليغات'),
-                  _buildNavItem(4, Icons.person, 'البروفايل'),
-                ],
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    vertical: ResponsiveHelper.isTablet(context) ? 12 : 8, 
+                    horizontal: ResponsiveHelper.isTablet(context) ? 24 : 18
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildNavItem(0, Icons.home, 'الرئيسية'),
+                      _buildNavItem(1, Icons.chat, 'المحادثات'),
+                      _buildNavItem(2, Icons.schedule, 'جدول الحصص'),
+                      _buildNavItem(3, Icons.campaign, 'التبليغات'),
+                      _buildNavItem(4, Icons.person, 'البروفايل'),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -315,13 +344,31 @@ class _GridPainter extends CustomPainter {
 class HomeScreenContent extends StatelessWidget {
   const HomeScreenContent({super.key});
 
+  String _getUserTypeInArabic(String userType) {
+    switch (userType.toLowerCase()) {
+      case 'teacher':
+        return 'معلم';
+      case 'admin':
+        return 'مدير النظام';
+      case 'student':
+        return 'طالب';
+      case 'parent':
+        return 'ولي أمر';
+      default:
+        return userType;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final organization = userProvider.organization;
+    
     return LayoutBuilder(
       builder: (context, constraints) {
         return Stack(
           children: [
-            // خلفية بتدرج أزرق ومربعات شفافة
+            // Background with blue gradient and transparent squares
             Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).scaffoldBackgroundColor,
@@ -355,45 +402,81 @@ class HomeScreenContent extends StatelessWidget {
                             ),
                             color: Theme.of(context).cardColor,
                           ),
-                          child: CircleAvatar(
-                            radius: ResponsiveHelper.getResponsiveIconSize(
-                              context,
-                              mobile: 65,
-                              tablet: 80,
-                              desktop: 90,
-                            ),
-                            backgroundColor: Colors.transparent,
-                            backgroundImage: AssetImage('assets/ALAnamel.jpg'),
-                          ),
+                          child: organization?.logo != null
+                              ? ClipOval(
+                                  child: Image.network(
+                                    'https://nouraleelemorg.runasp.net${organization!.logo}',
+                                    width: ResponsiveHelper.getResponsiveIconSize(
+                                      context,
+                                      mobile: 130,
+                                      tablet: 160,
+                                      desktop: 180,
+                                    ),
+                                    height: ResponsiveHelper.getResponsiveIconSize(
+                                      context,
+                                      mobile: 130,
+                                      tablet: 160,
+                                      desktop: 180,
+                                    ),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => CircleAvatar(
+                                      radius: ResponsiveHelper.getResponsiveIconSize(
+                                        context,
+                                        mobile: 65,
+                                        tablet: 80,
+                                        desktop: 90,
+                                      ),
+                                      backgroundColor: Colors.grey[200],
+                                      child: Icon(Icons.school, size: 60, color: Colors.grey[600]),
+                                    ),
+                                  ),
+                                )
+                              : CircleAvatar(
+                                  radius: ResponsiveHelper.getResponsiveIconSize(
+                                    context,
+                                    mobile: 65,
+                                    tablet: 80,
+                                    desktop: 90,
+                                  ),
+                                  backgroundColor: Colors.grey[200],
+                                  child: Icon(Icons.school, size: 60, color: Colors.grey[600]),
+                                ),
                         ),
                         SizedBox(height: ResponsiveHelper.isTablet(context) ? 14 : 10),
-                        Text(
-                          'مدارس الانامل الواعدة الاهلية',
-                          style: TextStyle(
-                            color: Theme.of(context).textTheme.titleLarge?.color ?? Color(0xFF233A5A),
-                            fontWeight: FontWeight.w600,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(
-                              context,
-                              mobile: 24,
-                              tablet: 28,
-                              desktop: 32,
+                        if (organization?.name != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                            child: Text(
+                              organization!.name,
+                              style: TextStyle(
+                                color: Theme.of(context).textTheme.titleLarge?.color ?? Color(0xFF233A5A),
+                                fontWeight: FontWeight.w600,
+                                fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                  context,
+                                  mobile: 22,
+                                  tablet: 26,
+                                  desktop: 30,
+                                ),
+                                letterSpacing: 0.1,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            letterSpacing: 0.1,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
                         SizedBox(height: ResponsiveHelper.isTablet(context) ? 6 : 4),
-                        Text(
-                          'ترخيص إدارة مالية ',
-                          style: TextStyle(
-                            color: Color(0xFFB0BEC5),
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(
-                              context,
-                              mobile: 15,
-                              tablet: 17,
-                              desktop: 18,
-                            ),
-                            fontWeight: FontWeight.w400,
+                        if (userProvider.userProfile?.userType != null)
+                          Text(
+                            _getUserTypeInArabic(userProvider.userProfile!.userType),
+                            style: TextStyle(
+                              color: Color(0xFF1976D2),
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                mobile: 16,
+                                tablet: 18,
+                                desktop: 20,
+                              ),
+                              fontWeight: FontWeight.w500,
                           ),
                           textAlign: TextAlign.center,
                         ),

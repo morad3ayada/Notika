@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'models/grade_components.dart';
+import 'providers/user_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,10 +21,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeNotifier,
-      builder: (context, currentMode, _) {
-        return MaterialApp(
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GradeComponents()),
+        ChangeNotifierProvider(create: (_) => UserProvider()..loadUserData()),
+      ],
+      child: ValueListenableBuilder<ThemeMode>(
+        valueListenable: themeNotifier,
+        builder: (context, currentMode, _) {
+          return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Notika Teacher',
           localizationsDelegates: [
@@ -86,6 +94,6 @@ class MyApp extends StatelessWidget {
           },
         );
       },
-    );
+    ));
   }
 }

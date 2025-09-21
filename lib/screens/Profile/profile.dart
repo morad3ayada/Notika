@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/user_provider.dart';
 
 class ClassInfo {
   final String id;
@@ -586,16 +588,21 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                                       const Icon(Icons.school, color: Color(0xFF43A047), size: 18),
                                       const SizedBox(width: 6),
                                       Flexible(
-                                        child: Text(
-                                          'مدرسة الانامل الواعدة',
-                                          style: TextStyle(
-                                            color: Theme.of(context).brightness == Brightness.dark
-                                                ? Colors.white
-                                                : Color(0xFF1976D2),
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 15,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
+                                        child: Consumer<UserProvider>(
+                                          builder: (context, userProvider, _) {
+                                            final orgName = userProvider.organization?.name ?? widget.profile.organizationName ?? 'مدرسة الانامل الواعدة';
+                                            return Text(
+                                              orgName,
+                                              style: TextStyle(
+                                                color: Theme.of(context).brightness == Brightness.dark
+                                                    ? Colors.white
+                                                    : Color(0xFF1976D2),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 15,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          },
                                         ),
                                       ),
                                     ],

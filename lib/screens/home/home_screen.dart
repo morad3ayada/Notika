@@ -35,6 +35,7 @@ class _MainScreenState extends State<MainScreen> {
   // صفحات البار السفلي
   List<Widget> _buildPages(UserProvider userProvider) {
     final userProfile = userProvider.userProfile;
+    final organization = userProvider.organization;
     final profileData = userProfile != null ? ProfileData(
       userId: userProfile.userId,
       userName: userProfile.userName,
@@ -45,6 +46,7 @@ class _MainScreenState extends State<MainScreen> {
       thirdName: userProfile.thirdName,
       fourthName: userProfile.fourthName,
       phone: userProfile.phone ?? '',
+      organizationName: organization?.name,
     ) : ProfileData(
       userId: '',
       userName: '',
@@ -53,6 +55,7 @@ class _MainScreenState extends State<MainScreen> {
       firstName: '',
       secondName: '',
       phone: '',
+      organizationName: organization?.name,
     );
 
     return <Widget>[

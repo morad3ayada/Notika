@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/auth_service.dart';
+import '../auth/sign_in.dart';
 
 class ClassInfo {
   final String id;
@@ -1178,7 +1180,7 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                       ),
                     ),
                     onPressed: () async {
-                      final confirmed = await showDialog<bool>(
+                      await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
                           title: const Text('تأكيد تسجيل الخروج'),
@@ -1192,15 +1194,36 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF1976D2),
                               ),
-                              onPressed: () => Navigator.of(ctx).pop(true),
+                              onPressed: () async {
+                                Navigator.of(ctx).pop(true); // يقفل النافذة
+
+                                // عرض مؤشر تقدم
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (_) => const Center(child: CircularProgressIndicator()),
+                                );
+
+                                try {
+                                  await AuthService().serverLogout(requireUserAction: true);
+                                } catch (_) {}
+
+                                await context.read<UserProvider>().logout();
+                                await AuthService.logout();
+
+                                if (mounted) {
+                                  Navigator.of(context).pop(); // يقفل الـ progress dialog
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(builder: (_) => const SignInScreen()),
+                                    (route) => false,
+                                  );
+                                }
+                              },
                               child: const Text('نعم'),
                             ),
                           ],
                         ),
                       );
-                      if (confirmed == true) {
-                        Navigator.of(context).popUntil((route) => route.isFirst);
-                      }
                     },
                   ),
                 ],

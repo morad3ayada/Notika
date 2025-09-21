@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../services/auth_service.dart';
@@ -7,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../providers/user_provider.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -81,6 +83,10 @@ class _SignInScreenState extends State<SignInScreen> {
       );
 
       // If we have a token, navigate to home
+      // Update provider immediately with fresh user data
+      if (mounted) {
+        context.read<UserProvider>().updateUserData(response);
+      }
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }

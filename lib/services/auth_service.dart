@@ -103,9 +103,8 @@ class AuthService {
   static Future<void> clearAuthData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(userDataKey);
-      await prefs.remove(tokenKey);
-      await prefs.remove(orgUrlKey);
+      // Clear all app preferences as requested
+      await prefs.clear();
     } catch (e) {
       print('Error clearing auth data: $e');
       rethrow;
@@ -114,5 +113,32 @@ class AuthService {
 
   static Future<void> logout() async {
     await clearAuthData();
+  }
+
+  // Calls the backend logout endpoint with the saved token
+  // The call will be blocked unless explicitly invoked from a confirmed user action.
+  Future<void> serverLogout({bool requireUserAction = false}) async {
+    if (!requireUserAction) {
+      return;
+    }
+
+    try {
+      final token = await AuthService.getToken();
+      if (token != null) {
+        final clientWithToken = ApiClient(
+          baseUrl: ApiConfig.centralAuthBaseUrl,
+          token: token,
+        );
+        await clientWithToken.post(
+          endpoint: ApiConfig.logoutEndpoint,
+        );
+      }
+    } catch (_) {
+      // Intentionally ignore any server error (including 401)
+    }
+
+    // Always clear local auth data and confirm with a single log line
+    await clearAuthData();
+    debugPrint('Local logout done');
   }
 }

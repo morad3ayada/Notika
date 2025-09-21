@@ -27,6 +27,19 @@ class UserProvider with ChangeNotifier {
       
       _userProfile = UserProfile.fromJson(userData);
       
+      // Enforce Teacher-only session restore
+      final userType = _userProfile?.userType.trim().toLowerCase();
+      if (userType != 'teacher') {
+        // Clear invalid session data
+        await prefs.remove(AuthService.tokenKey);
+        await prefs.remove(AuthService.userDataKey);
+        _token = null;
+        _userProfile = null;
+        _organization = null;
+        notifyListeners();
+        return;
+      }
+      
       if (userData['organization'] != null) {
         _organization = Organization.fromJson(userData['organization']);
       }

@@ -32,6 +32,15 @@ class AuthService {
       // Parse the response
       final response = LoginResponse.fromJson(loginResponse);
       
+      // Enforce Teacher-only login
+      final topLevelType = response.userType.trim();
+      final profileType = response.profile.userType.trim();
+      final isTeacher = topLevelType.toLowerCase() == 'teacher' || profileType.toLowerCase() == 'teacher';
+      if (!isTeacher) {
+        // Do not save any auth data if the user is not a Teacher
+        throw Exception('غير مسموح بالدخول إلا لحساب المعلم فقط');
+      }
+      
       // Save the authentication data
       await _saveAuthData(response);
       

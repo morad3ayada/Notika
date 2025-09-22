@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
-import 'screens/home/home_screen.dart';
-import 'screens/auth/sign_in.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'presentation/screens/home/home_screen.dart';
+import 'presentation/screens/auth/sign_in.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'models/grade_components.dart';
+import 'data/models/grade_components.dart';
 import 'providers/user_provider.dart';
+import 'di/injector.dart';
+import 'logic/blocs/auth/auth_bloc.dart';
+import 'logic/blocs/profile/profile_bloc.dart';
+import 'data/repositories/auth_repository.dart';
+import 'data/repositories/profile_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar', null);
+  setupDependencies();
   runApp(MyApp());
 }
 
@@ -26,7 +33,16 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => GradeComponents()),
         ChangeNotifierProvider(create: (_) => UserProvider()..loadUserData()),
       ],
-      child: ValueListenableBuilder<ThemeMode>(
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>(
+            create: (_) => AuthBloc(sl<AuthRepository>()),
+          ),
+          BlocProvider<ProfileBloc>(
+            create: (_) => ProfileBloc(sl<ProfileRepository>()),
+          ),
+        ],
+        child: ValueListenableBuilder<ThemeMode>(
         valueListenable: themeNotifier,
         builder: (context, currentMode, _) {
           return MaterialApp(
@@ -94,6 +110,8 @@ class MyApp extends StatelessWidget {
           },
         );
       },
-    ));
+    ),
+      ),
+    );
   }
 }

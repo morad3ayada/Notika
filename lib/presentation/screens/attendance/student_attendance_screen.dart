@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../bloc/profile/profile_bloc.dart';
+import '../../../bloc/profile/profile_event.dart';
+import '../../../bloc/profile/profile_state.dart';
+import '../../../data/models/profile_models.dart';
+import '../../../di/injector.dart';
+import '../../../data/repositories/profile_repository.dart';
 
 class StudentAttendanceScreen extends StatefulWidget {
   const StudentAttendanceScreen({super.key});
@@ -14,22 +21,43 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   String? selectedSection;
   String? selectedSubject;
   bool selectAll = false;
+  late final ProfileBloc _profileBloc;
 
-  final List<String> schools = [
-    'مدرسة بغداد',
-    'مدرسة الكوفة',
-    'مدرسة البصرة',
-  ];
-  final List<String> stages = [
-    'الأول ابتدائي',
-    'الثاني ابتدائي',
-    'الثالث ابتدائي',
-    'الرابع ابتدائي',
-    'الخامس ابتدائي',
-    'السادس ابتدائي',
-  ];
-  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
-  final List<String> subjects = ['اللغة العربية', 'التربية الإسلامية'];
+  // سيتم اشتقاق القوائم التالية من بيانات الـ BLoC بدلاً من البيانات الثابتة
+  List<String> _buildSchools(List<TeacherClass> classes) {
+    final set = <String>{};
+    for (final c in classes) {
+      if ((c.schoolName ?? '').trim().isNotEmpty) set.add(c.schoolName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildStages(List<TeacherClass> classes, String? school) {
+    if (school == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school)) {
+      if ((c.levelName ?? '').trim().isNotEmpty) set.add(c.levelName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSections(List<TeacherClass> classes, String? school, String? stage) {
+    if (school == null || stage == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage)) {
+      if ((c.className ?? '').trim().isNotEmpty) set.add(c.className!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSubjects(List<TeacherClass> classes, String? school, String? stage, String? section) {
+    if (school == null || stage == null || section == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage && e.className == section)) {
+      if ((c.subjectName ?? '').trim().isNotEmpty) set.add(c.subjectName!.trim());
+    }
+    return set.toList();
+  }
 
   // بيانات الطلاب (مثال ثابت)
   final List<Map<String, dynamic>> students = [
@@ -49,6 +77,18 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
         }
       }
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
+  }
+
+  @override
+  void dispose() {
+    _profileBloc.close();
+    super.dispose();
   }
 
   void _submitAttendance() {
@@ -206,65 +246,87 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
             ),
           ),
         ),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                buildHorizontalSelector(
-                  items: schools,
-                  selected: selectedSchool,
-                  onSelect: (val) {
-                    setState(() {
-                      selectedSchool = val;
-                      selectedStage = null;
-                      selectedSection = null;
-                      selectedSubject = null;
-                    });
-                  },
-                  label: 'المدرسة',
+        body: BlocBuilder<ProfileBloc, ProfileState>(
+          bloc: _profileBloc,
+          builder: (context, state) {
+            if (state is ProfileLoading || state is ProfileInitial) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (state is ProfileError) {
+              return Center(
+                child: Text(
+                  state.message,
+                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 12),
-                if (selectedSchool != null)
-                  buildHorizontalSelector(
-                    items: stages,
-                    selected: selectedStage,
-                    onSelect: (val) {
-                      setState(() {
-                        selectedStage = val;
-                        selectedSection = null;
-                        selectedSubject = null;
-                      });
-                    },
-                    label: 'المرحلة',
-                  ),
-                if (selectedSchool != null) const SizedBox(height: 12),
-                if (selectedStage != null)
-                  buildHorizontalSelector(
-                    items: sections,
-                    selected: selectedSection,
-                    onSelect: (val) {
-                      setState(() {
-                        selectedSection = val;
-                        selectedSubject = null;
-                      });
-                    },
-                    label: 'الشعبة',
-                  ),
-                if (selectedStage != null) const SizedBox(height: 12),
-                if (selectedSection != null)
-                  buildHorizontalSelector(
-                    items: subjects,
-                    selected: selectedSubject,
-                    onSelect: (val) {
-                      setState(() {
-                        selectedSubject = val;
-                      });
-                    },
-                    label: 'المادة',
-                  ),
-                if (selectedSubject != null) ...[
+              );
+            }
+
+            final loaded = state as ProfileLoaded;
+            final classes = loaded.classes;
+            final schools = _buildSchools(classes);
+            final stages = _buildStages(classes, selectedSchool);
+            final sections = _buildSections(classes, selectedSchool, selectedStage);
+            final subjects = _buildSubjects(classes, selectedSchool, selectedStage, selectedSection);
+
+            return SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    buildHorizontalSelector(
+                      items: schools,
+                      selected: selectedSchool,
+                      onSelect: (val) {
+                        setState(() {
+                          selectedSchool = val;
+                          selectedStage = null;
+                          selectedSection = null;
+                          selectedSubject = null;
+                        });
+                      },
+                      label: 'المدرسة',
+                    ),
+                    const SizedBox(height: 12),
+                    if (selectedSchool != null)
+                      buildHorizontalSelector(
+                        items: stages,
+                        selected: selectedStage,
+                        onSelect: (val) {
+                          setState(() {
+                            selectedStage = val;
+                            selectedSection = null;
+                            selectedSubject = null;
+                          });
+                        },
+                        label: 'المرحلة',
+                      ),
+                    if (selectedSchool != null) const SizedBox(height: 12),
+                    if (selectedStage != null)
+                      buildHorizontalSelector(
+                        items: sections,
+                        selected: selectedSection,
+                        onSelect: (val) {
+                          setState(() {
+                            selectedSection = val;
+                            selectedSubject = null;
+                          });
+                        },
+                        label: 'الشعبة',
+                      ),
+                    if (selectedStage != null) const SizedBox(height: 12),
+                    if (selectedSection != null)
+                      buildHorizontalSelector(
+                        items: subjects,
+                        selected: selectedSubject,
+                        onSelect: (val) {
+                          setState(() {
+                            selectedSubject = val;
+                          });
+                        },
+                        label: 'المادة',
+                      ),
+                    if (selectedSubject != null) ...[
                   const SizedBox(height: 16),
                   // اختيار الكل
                   Row(
@@ -403,22 +465,24 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                     ),
                   ),
                 ],
-                if (selectedSubject == null)
-                  SizedBox(
-                    height: 200,
-                    child: Center(
-                      child: Text(
-                        'اختر المادة لعرض الطلاب',
-                        style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500),
+                    if (selectedSubject == null)
+                      SizedBox(
+                        height: 200,
+                        child: Center(
+                          child: Text(
+                            'اختر المادة لعرض الطلاب',
+                            style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

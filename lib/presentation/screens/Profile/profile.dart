@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_provider.dart';
-import '../../services/auth_service.dart';
+import '../../../providers/user_provider.dart';
+import '../../../data/services/auth_service.dart';
 import '../auth/sign_in.dart';
 
 class ClassInfo {

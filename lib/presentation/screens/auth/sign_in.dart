@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../services/auth_service.dart';
-import '../../utils/network_utils.dart';
+import '../../../utils/network_utils.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../../providers/user_provider.dart';
+import '../../../providers/user_provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../logic/blocs/auth/auth_bloc.dart';
+import '../../../logic/blocs/auth/auth_event.dart';
+import '../../../logic/blocs/auth/auth_state.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -71,53 +74,38 @@ class _SignInScreenState extends State<SignInScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final authService = AuthService();
-      final response = await authService.login(
-        _usernameController.text.trim(),
-        _passwordController.text,
-      );
-
-      // If we have a token, navigate to home
-      // Update provider immediately with fresh user data
-      if (mounted) {
-        context.read<UserProvider>().updateUserData(response);
-      }
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
-      
-      // Show success message if available
-      if (response.message != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response.message!)),
+    // Dispatch BLoC event instead of calling service directly
+    context.read<AuthBloc>().add(
+          LoginRequested(_usernameController.text.trim(), _passwordController.text),
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthLoading) {
+          setState(() => _isLoading = true);
+        } else {
+          if (_isLoading) setState(() => _isLoading = false);
+        }
+        if (state is AuthSuccess) {
+          // Update Provider and navigate, keep visuals the same
+          context.read<UserProvider>().updateUserData(state.response);
+          Navigator.of(context).pushReplacementNamed('/home');
+          if (state.response.message != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.response.message!)),
+            );
+          }
+        }
+        if (state is AuthFailure) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+          );
+        }
+      },
+      child: Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
@@ -407,6 +395,7 @@ class _SignInScreenState extends State<SignInScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 }

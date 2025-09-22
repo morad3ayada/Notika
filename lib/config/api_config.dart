@@ -9,8 +9,8 @@ class ApiConfig {
   static const String changePasswordEndpoint = '/api/auth/change-password';
   
   // Profile Endpoints
-  static const String profileEndpoint = '/api/profileAuthorized';
-  static const String organizationEndpoint = '/api/profile/organizationAuthorized';
+  static const String profileEndpoint = '/api/profile';
+  static const String organizationEndpoint = '/api/profile/organization';
   
   // Timeouts
   static const Duration connectionTimeout = Duration(seconds: 30);

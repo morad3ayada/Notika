@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/auth_models.dart';
-import '../services/auth_service.dart';
+import '../data/models/auth_models.dart';
+import '../data/services/auth_service.dart';
 
 class UserProvider with ChangeNotifier {
   String? _token;
@@ -25,7 +25,13 @@ class UserProvider with ChangeNotifier {
       _token = token;
       final userData = jsonDecode(userDataString) as Map<String, dynamic>;
       
-      _userProfile = UserProfile.fromJson(userData);
+      // Load nested profile from saved JSON (was incorrectly passing the whole map)
+      final profileJson = userData['profile'] as Map<String, dynamic>?;
+      if (profileJson != null) {
+        _userProfile = UserProfile.fromJson(profileJson);
+      } else {
+        _userProfile = null;
+      }
       
       // Enforce Teacher-only session restore
       final userType = _userProfile?.userType.trim().toLowerCase();
@@ -41,7 +47,20 @@ class UserProvider with ChangeNotifier {
       }
       
       if (userData['organization'] != null) {
-        _organization = Organization.fromJson(userData['organization']);
+        _organization = Organization.fromJson(userData['organization'] as Map<String, dynamic>);
+      }
+
+      // Merge saved organization URL if available but not present in saved org object
+      final savedOrgUrl = prefs.getString(AuthService.orgUrlKey);
+      if (_organization != null && (_organization!.url == null || _organization!.url!.isEmpty) && savedOrgUrl != null && savedOrgUrl.isNotEmpty) {
+        _organization = Organization(
+          id: _organization!.id,
+          name: _organization!.name,
+          logo: _organization!.logo,
+          url: savedOrgUrl,
+          startStudyDate: _organization!.startStudyDate,
+          endStudyDate: _organization!.endStudyDate,
+        );
       }
       
       notifyListeners();

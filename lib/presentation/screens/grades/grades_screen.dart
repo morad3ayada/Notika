@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:notika_teacher/models/grade_components.dart';
+import 'package:notika_teacher/data/models/grade_components.dart';
 
 class GradesScreen extends StatefulWidget {
   const GradesScreen({super.key});

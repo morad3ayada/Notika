@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
 import '../utils/network_utils.dart';
-import '../services/auth_service.dart';
+import '../data/services/auth_service.dart';
 
 class ApiClient {
   final String baseUrl;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/api_config.dart';
 import '../Schedule/schedule_screen.dart';
 import '../chat/Chat_screen.dart';
 import '../Profile/profile.dart';
@@ -9,11 +10,21 @@ import '../tests/quick_tests_screen.dart';
 import '../grades/grades_screen.dart';
 import '../assignments/assignments_screen.dart';
 import '../Conferences/conferences_screen.dart';
-import '../../main.dart';
-import '../../utils/responsive_helper.dart';
+import '../../../main.dart';
+import '../../../utils/responsive_helper.dart';
 import '../admin notifications/admin_notifications.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_provider.dart';
+import '../../../providers/user_provider.dart';
+
+// Resolve organization logo URL whether it is a full URL or a relative path
+String _resolveLogoUrl(String? logo, String? orgUrl) {
+  if (logo == null) return '';
+  final trimmed = logo.trim();
+  if (trimmed.isEmpty) return '';
+  if (trimmed.startsWith('http')) return trimmed;
+  final base = (orgUrl != null && orgUrl.trim().isNotEmpty) ? orgUrl.trim() : ApiConfig.baseUrl;
+  return '$base$trimmed';
+}
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -156,6 +167,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Consumer<UserProvider>(
       builder: (context, userProvider, _) {
+        final organization = userProvider.organization;
         return Scaffold(
           extendBodyBehindAppBar: true,
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -202,9 +214,13 @@ class _MainScreenState extends State<MainScreen> {
                           ],
                         ),
                         padding: EdgeInsets.all(ResponsiveHelper.isTablet(context) ? 8 : 6),
-                        child: Image.asset(
-                          'assets/notika_logo.png', 
-                          height: ResponsiveHelper.isTablet(context) ? 48 : 38
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/notika_logo.png',
+                            height: ResponsiveHelper.isTablet(context) ? 48 : 38,
+                            width: ResponsiveHelper.isTablet(context) ? 48 : 38,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                       SizedBox(width: ResponsiveHelper.isTablet(context) ? 18 : 14),
@@ -405,10 +421,10 @@ class HomeScreenContent extends StatelessWidget {
                             ),
                             color: Theme.of(context).cardColor,
                           ),
-                          child: organization?.logo != null
+                          child: (organization?.logo != null && organization!.logo!.trim().isNotEmpty)
                               ? ClipOval(
                                   child: Image.network(
-                                    'https://nouraleelemorg.runasp.net${organization!.logo}',
+                                    _resolveLogoUrl(organization!.logo, organization.url),
                                     width: ResponsiveHelper.getResponsiveIconSize(
                                       context,
                                       mobile: 130,

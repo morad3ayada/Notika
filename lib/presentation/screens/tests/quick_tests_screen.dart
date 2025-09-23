@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../bloc/profile/profile_bloc.dart';
+import '../../../bloc/profile/profile_event.dart';
+import '../../../bloc/profile/profile_state.dart';
+import '../../../data/models/profile_models.dart';
+import '../../../di/injector.dart';
+import '../../../data/repositories/profile_repository.dart';
 
 class QuickTestsScreen extends StatefulWidget {
   const QuickTestsScreen({super.key});
@@ -14,21 +21,7 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
   String? selectedSection;
   String? selectedSubject;
   int? examGrade;
-  final List<String> schools = [
-    'مدرسة بغداد',
-    'مدرسة الكوفة',
-    'مدرسة البصرة',
-  ];
-  final List<String> stages = [
-    'الأول ابتدائي',
-    'الثاني ابتدائي',
-    'الثالث ابتدائي',
-    'الرابع ابتدائي',
-    'الخامس ابتدائي',
-    'السادس ابتدائي',
-  ];
-  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
-  final List<String> subjects = ['اللغة العربية', 'التربية الإسلامية'];
+  late final ProfileBloc _profileBloc;
   int? durationMinutes;
 
   final List<Map<String, dynamic>> questionTypes = [
@@ -57,6 +50,54 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
     "truefalse": [],
     "complete": [],
   };
+
+  // Helpers to derive dynamic lists from TeacherClass
+  List<String> _buildSchools(List<TeacherClass> classes) {
+    final set = <String>{};
+    for (final c in classes) {
+      if ((c.schoolName ?? '').trim().isNotEmpty) set.add(c.schoolName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildStages(List<TeacherClass> classes, String? school) {
+    if (school == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school)) {
+      if ((c.levelName ?? '').trim().isNotEmpty) set.add(c.levelName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSections(List<TeacherClass> classes, String? school, String? stage) {
+    if (school == null || stage == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage)) {
+      if ((c.className ?? '').trim().isNotEmpty) set.add(c.className!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSubjects(List<TeacherClass> classes, String? school, String? stage, String? section) {
+    if (school == null || stage == null || section == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage && e.className == section)) {
+      if ((c.subjectName ?? '').trim().isNotEmpty) set.add(c.subjectName!.trim());
+    }
+    return set.toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
+  }
+
+  @override
+  void dispose() {
+    _profileBloc.close();
+    super.dispose();
+  }
 
   void _addQuestion(String type) {
     setState(() {
@@ -602,7 +643,29 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
               painter: _GridPainter(gridColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
             ),
             SafeArea(
-              child: SingleChildScrollView(
+              child: BlocBuilder<ProfileBloc, ProfileState>(
+                bloc: _profileBloc,
+                builder: (context, state) {
+                  if (state is ProfileLoading || state is ProfileInitial) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (state is ProfileError) {
+                    return Center(
+                      child: Text(
+                        state.message,
+                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }
+
+                  final loaded = state as ProfileLoaded;
+                  final classes = loaded.classes;
+                  final schools = _buildSchools(classes);
+                  final stages = _buildStages(classes, selectedSchool);
+                  final sections = _buildSections(classes, selectedSchool, selectedStage);
+                  final subjects = _buildSubjects(classes, selectedSchool, selectedStage, selectedSection);
+
+                  return SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Form(
                   key: _formKey,
@@ -1057,6 +1120,8 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
                     ],
                   ),
                 ),
+              );
+                },
               ),
             ),
           ],

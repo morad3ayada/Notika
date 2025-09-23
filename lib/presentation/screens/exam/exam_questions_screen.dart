@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../pdf/pdf_upload_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../bloc/profile/profile_bloc.dart';
+import '../../../bloc/profile/profile_event.dart';
+import '../../../bloc/profile/profile_state.dart';
+import '../../../data/models/profile_models.dart';
+import '../../../di/injector.dart';
+import '../../../data/repositories/profile_repository.dart';
 
 class ExamQuestionsScreen extends StatefulWidget {
   const ExamQuestionsScreen({super.key});
@@ -9,71 +16,90 @@ class ExamQuestionsScreen extends StatefulWidget {
   State<ExamQuestionsScreen> createState() => _ExamQuestionsScreenState();
 }
 
-class _ExamQuestionsScreenState extends State<ExamQuestionsScreen> 
+class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
     with AutomaticKeepAliveClientMixin {
-  
   @override
   bool get wantKeepAlive => true;
-  
+
   final _formKey = GlobalKey<FormState>();
-  
+
   // --- selectors state and lists ---
   String? selectedSchool;
   String? selectedStage;
   String? selectedSection;
   String? selectedSubject;
-  
-  // استخدام const للقوائم الثابتة
-  static const List<String> schools = [
-    'مدرسة بغداد',
-    'مدرسة الكوفة',
-    'مدرسة البصرة',
-  ];
-  static const List<String> stages = [
-    'الأول ابتدائي',
-    'الثاني ابتدائي',
-    'الثالث ابتدائي',
-    'الرابع ابتدائي',
-    'الخامس ابتدائي',
-    'السادس ابتدائي',
-  ];
-  static const List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
-  static const List<String> subjects = [
-    'الرياضيات',
-    'العلوم',
-    'اللغة العربية',
-    'اللغة الإنجليزية',
-    'الدراسات الاجتماعية',
-    'الحاسوب',
-  ];
-  
+  late final ProfileBloc _profileBloc;
+
+  // Helpers to derive dynamic lists from TeacherClass
+  List<String> _buildSchools(List<TeacherClass> classes) {
+    final set = <String>{};
+    for (final c in classes) {
+      if ((c.schoolName ?? '').trim().isNotEmpty) set.add(c.schoolName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildStages(List<TeacherClass> classes, String? school) {
+    if (school == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school)) {
+      if ((c.levelName ?? '').trim().isNotEmpty) set.add(c.levelName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSections(
+      List<TeacherClass> classes, String? school, String? stage) {
+    if (school == null || stage == null) return const [];
+    final set = <String>{};
+    for (final c in classes
+        .where((e) => e.schoolName == school && e.levelName == stage)) {
+      if ((c.className ?? '').trim().isNotEmpty) set.add(c.className!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSubjects(List<TeacherClass> classes, String? school,
+      String? stage, String? section) {
+    if (school == null || stage == null || section == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) =>
+        e.schoolName == school &&
+        e.levelName == stage &&
+        e.className == section)) {
+      if ((c.subjectName ?? '').trim().isNotEmpty)
+        set.add(c.subjectName!.trim());
+    }
+    return set.toList();
+  }
+
   // Removed selectedClass as it's no longer needed
   // Removed class selection as per user request
-  
+
   // Removed all class options as per user request
 
   static const List<Map<String, dynamic>> questionTypes = [
     {
-      "label": "اختياري", 
-      "value": "choice", 
+      "label": "اختياري",
+      "value": "choice",
       "icon": Icons.radio_button_checked,
       "iconColor": Color(0xFF1976D2),
     },
     {
-      "label": "صح أو خطأ", 
-      "value": "truefalse", 
+      "label": "صح أو خطأ",
+      "value": "truefalse",
       "icon": Icons.check_circle,
       "iconColor": Color(0xFF1976D2),
     },
     {
-      "label": "أكمل الفراغ", 
-      "value": "complete", 
+      "label": "أكمل الفراغ",
+      "value": "complete",
       "icon": Icons.edit,
       "iconColor": Color(0xFF1976D2),
     },
     {
-      "label": "مقالي", 
-      "value": "essay", 
+      "label": "مقالي",
+      "value": "essay",
       "icon": Icons.article,
       "iconColor": Color(0xFF1976D2),
     },
@@ -99,12 +125,19 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
   final Map<String, Widget> _cachedSelectors = {};
   final Map<String, Widget> _cachedQuestionInputs = {};
 
-
   @override
   void dispose() {
+    _profileBloc.close();
     _cachedSelectors.clear();
     _cachedQuestionInputs.clear();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())
+      ..add(const FetchProfile());
   }
 
   // دالة لاختيار أي ملف
@@ -118,15 +151,15 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           child: CircularProgressIndicator(),
         ),
       );
-      
+
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
         allowMultiple: false,
       );
-      
+
       // إخفاء مؤشر التحميل
       Navigator.of(context).pop();
-      
+
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
         if (file.path != null) {
@@ -135,7 +168,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
             isFileSelected = true;
             questionInputType = 'file';
           });
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('تم اختيار الملف: ${file.name}'),
@@ -150,7 +183,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
       if (Navigator.canPop(context)) {
         Navigator.of(context).pop();
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('حدث خطأ: $e'),
@@ -173,7 +206,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
   // دالة لإرسال الملف
   void _submitFile() {
     if (selectedFile == null) return;
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('تم إرسال الملف: ${selectedFile!.name}'),
@@ -242,7 +275,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
       setState(() {
         questionsByType[type]![questionIndex]["options"].removeAt(optionIndex);
         if (questionsByType[type]![questionIndex]["correctOption"] != null &&
-            questionsByType[type]![questionIndex]["correctOption"] >= questionsByType[type]![questionIndex]["options"].length) {
+            questionsByType[type]![questionIndex]["correctOption"] >=
+                questionsByType[type]![questionIndex]["options"].length) {
           questionsByType[type]![questionIndex]["correctOption"] = null;
         }
       });
@@ -251,10 +285,12 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
 
   void _submit() {
     if (!mounted) return;
-    
+
     if (selectedSubject == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى اختيار المادة'), duration: Duration(seconds: 1)),
+        const SnackBar(
+            content: Text('يرجى اختيار المادة'),
+            duration: Duration(seconds: 1)),
       );
       return;
     }
@@ -266,7 +302,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
 
     if (totalQuestions == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى إضافة أسئلة'), duration: Duration(seconds: 1)),
+        const SnackBar(
+            content: Text('يرجى إضافة أسئلة'), duration: Duration(seconds: 1)),
       );
       return;
     }
@@ -317,14 +354,17 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
     return widget;
   }
 
-  Widget _buildChoiceQuestion(Map<String, dynamic> question, String type, int questionIndex) {
+  Widget _buildChoiceQuestion(
+      Map<String, dynamic> question, String type, int questionIndex) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextFormField(
           decoration: InputDecoration(
             labelText: 'نص السؤال',
-            labelStyle: TextStyle(color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A)),
+            labelStyle: TextStyle(
+                color: Theme.of(context).textTheme.titleMedium?.color ??
+                    const Color(0xFF233A5A)),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
@@ -342,8 +382,10 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           ),
           maxLines: 2,
           initialValue: question["question"],
-          onChanged: (val) => _updateQuestion(type, questionIndex, "question", val),
-          validator: (val) => val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
+          onChanged: (val) =>
+              _updateQuestion(type, questionIndex, "question", val),
+          validator: (val) =>
+              val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
         ),
         const SizedBox(height: 20),
         Column(
@@ -351,14 +393,16 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.radio_button_checked, color: Color(0xFF1976D2), size: 20),
+                const Icon(Icons.radio_button_checked,
+                    color: Color(0xFF1976D2), size: 20),
                 const SizedBox(width: 8),
                 Text(
                   'الاختيارات:',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                    color: Theme.of(context).textTheme.titleMedium?.color ??
+                        const Color(0xFF233A5A),
                   ),
                 ),
               ],
@@ -369,20 +413,23 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
               physics: const NeverScrollableScrollPhysics(),
               itemCount: question["options"].length,
               itemBuilder: (context, optionIndex) => Container(
-                margin: const EdgeInsets.only(bottom: 12, right: 4, left: 4), // Added horizontal margin
-                padding: const EdgeInsets.symmetric(horizontal: 4), // Added horizontal padding
+                margin: const EdgeInsets.only(
+                    bottom: 12, right: 4, left: 4), // Added horizontal margin
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 4), // Added horizontal padding
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start, // Align items to start
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start, // Align items to start
                   children: [
                     Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: question["correctOption"] == optionIndex 
-                            ? const Color(0xFF1976D2) 
+                        color: question["correctOption"] == optionIndex
+                            ? const Color(0xFF1976D2)
                             : Theme.of(context).cardColor,
                         border: Border.all(
-                          color: question["correctOption"] == optionIndex 
-                              ? const Color(0xFF1976D2) 
+                          color: question["correctOption"] == optionIndex
+                              ? const Color(0xFF1976D2)
                               : const Color(0xFFE0E0E0),
                           width: 2,
                         ),
@@ -390,7 +437,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                       child: Radio<int>(
                         value: optionIndex,
                         groupValue: question["correctOption"],
-                        onChanged: (val) => _updateQuestion(type, questionIndex, "correctOption", val),
+                        onChanged: (val) => _updateQuestion(
+                            type, questionIndex, "correctOption", val),
                         activeColor: Colors.white,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -404,35 +452,48 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         decoration: InputDecoration(
                           labelText: 'اختيار ${optionIndex + 1}',
                           labelStyle: const TextStyle(color: Color(0xFF607D8B)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Added padding
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12), // Added padding
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE0E0E0)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE0E0E0)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                            borderSide: const BorderSide(
+                                color: Color(0xFF1976D2), width: 2),
                           ),
                           filled: true,
                           fillColor: Theme.of(context).cardColor,
                         ),
                         initialValue: question["options"][optionIndex],
                         onChanged: (val) {
-                          _updateQuestion(type, questionIndex, "options", List<String>.from(question["options"])..[optionIndex] = val);
+                          _updateQuestion(
+                              type,
+                              questionIndex,
+                              "options",
+                              List<String>.from(question["options"])
+                                ..[optionIndex] = val);
                         },
-                        validator: (val) => val == null || val.isEmpty ? 'أدخل نص الاختيار' : null,
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'أدخل نص الاختيار'
+                            : null,
                       ),
                     ),
                     if (question["options"].length > 2)
                       Container(
                         margin: const EdgeInsets.only(left: 8),
                         child: IconButton(
-                          icon: Icon(Icons.remove_circle, color: Colors.red[400]),
-                          onPressed: () => _removeOption(type, questionIndex, optionIndex),
+                          icon:
+                              Icon(Icons.remove_circle, color: Colors.red[400]),
+                          onPressed: () =>
+                              _removeOption(type, questionIndex, optionIndex),
                         ),
                       ),
                   ],
@@ -443,10 +504,12 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: () => _addOption(type, questionIndex),
-                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF1976D2)),
+                icon: const Icon(Icons.add_circle_outline,
+                    color: Color(0xFF1976D2)),
                 label: const Text(
                   'إضافة اختيار',
-                  style: TextStyle(color: Color(0xFF1976D2), fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      color: Color(0xFF1976D2), fontWeight: FontWeight.w600),
                 ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -463,7 +526,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
     );
   }
 
-  Widget _buildTrueFalseQuestion(Map<String, dynamic> question, String type, int questionIndex) {
+  Widget _buildTrueFalseQuestion(
+      Map<String, dynamic> question, String type, int questionIndex) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -488,8 +552,10 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           ),
           maxLines: 2,
           initialValue: question["question"],
-          onChanged: (val) => _updateQuestion(type, questionIndex, "question", val),
-          validator: (val) => val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
+          onChanged: (val) =>
+              _updateQuestion(type, questionIndex, "question", val),
+          validator: (val) =>
+              val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
         ),
         const SizedBox(height: 20),
         Column(
@@ -497,7 +563,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.check_circle, color: Color(0xFF1976D2), size: 20),
+                const Icon(Icons.check_circle,
+                    color: Color(0xFF1976D2), size: 20),
                 const SizedBox(width: 8),
                 const Text(
                   'الإجابة:',
@@ -515,21 +582,28 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: question["trueFalseAnswer"] == true ? const Color(0xFF1976D2) : Theme.of(context).cardColor,
+                      color: question["trueFalseAnswer"] == true
+                          ? const Color(0xFF1976D2)
+                          : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: question["trueFalseAnswer"] == true ? const Color(0xFF1976D2) : const Color(0xFFE0E0E0),
+                        color: question["trueFalseAnswer"] == true
+                            ? const Color(0xFF1976D2)
+                            : const Color(0xFFE0E0E0),
                         width: 2,
                       ),
                     ),
                     child: RadioListTile<bool>(
                       value: true,
                       groupValue: question["trueFalseAnswer"],
-                      onChanged: (val) => _updateQuestion(type, questionIndex, "trueFalseAnswer", val),
+                      onChanged: (val) => _updateQuestion(
+                          type, questionIndex, "trueFalseAnswer", val),
                       title: Text(
                         'صح',
                         style: TextStyle(
-                          color: question["trueFalseAnswer"] == true ? Colors.white : const Color(0xFF233A5A),
+                          color: question["trueFalseAnswer"] == true
+                              ? Colors.white
+                              : const Color(0xFF233A5A),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -542,21 +616,28 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: question["trueFalseAnswer"] == false ? const Color(0xFF1976D2) : Theme.of(context).cardColor,
+                      color: question["trueFalseAnswer"] == false
+                          ? const Color(0xFF1976D2)
+                          : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: question["trueFalseAnswer"] == false ? const Color(0xFF1976D2) : const Color(0xFFE0E0E0),
+                        color: question["trueFalseAnswer"] == false
+                            ? const Color(0xFF1976D2)
+                            : const Color(0xFFE0E0E0),
                         width: 2,
                       ),
                     ),
                     child: RadioListTile<bool>(
                       value: false,
                       groupValue: question["trueFalseAnswer"],
-                      onChanged: (val) => _updateQuestion(type, questionIndex, "trueFalseAnswer", val),
+                      onChanged: (val) => _updateQuestion(
+                          type, questionIndex, "trueFalseAnswer", val),
                       title: Text(
                         'خطأ',
                         style: TextStyle(
-                          color: question["trueFalseAnswer"] == false ? Colors.white : const Color(0xFF233A5A),
+                          color: question["trueFalseAnswer"] == false
+                              ? Colors.white
+                              : const Color(0xFF233A5A),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -573,7 +654,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
     );
   }
 
-  Widget _buildCompleteQuestion(Map<String, dynamic> question, String type, int questionIndex) {
+  Widget _buildCompleteQuestion(
+      Map<String, dynamic> question, String type, int questionIndex) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -598,8 +680,10 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           ),
           maxLines: 2,
           initialValue: question["question"],
-          onChanged: (val) => _updateQuestion(type, questionIndex, "question", val),
-          validator: (val) => val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
+          onChanged: (val) =>
+              _updateQuestion(type, questionIndex, "question", val),
+          validator: (val) =>
+              val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
         ),
         const SizedBox(height: 20),
         TextFormField(
@@ -622,14 +706,17 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
             fillColor: const Color(0xFFFAFAFA),
           ),
           initialValue: question["completeAnswer"],
-          onChanged: (val) => _updateQuestion(type, questionIndex, "completeAnswer", val),
-          validator: (val) => val == null || val.isEmpty ? 'أدخل الإجابة' : null,
+          onChanged: (val) =>
+              _updateQuestion(type, questionIndex, "completeAnswer", val),
+          validator: (val) =>
+              val == null || val.isEmpty ? 'أدخل الإجابة' : null,
         ),
       ],
     );
   }
 
-  Widget _buildEssayQuestion(Map<String, dynamic> question, String type, int questionIndex) {
+  Widget _buildEssayQuestion(
+      Map<String, dynamic> question, String type, int questionIndex) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -654,8 +741,10 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           ),
           maxLines: 3,
           initialValue: question["question"],
-          onChanged: (val) => _updateQuestion(type, questionIndex, "question", val),
-          validator: (val) => val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
+          onChanged: (val) =>
+              _updateQuestion(type, questionIndex, "question", val),
+          validator: (val) =>
+              val == null || val.isEmpty ? 'أدخل نص السؤال' : null,
         ),
         const SizedBox(height: 20),
         TextFormField(
@@ -679,7 +768,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
           ),
           maxLines: 4,
           initialValue: question["essayAnswer"],
-          onChanged: (val) => _updateQuestion(type, questionIndex, "essayAnswer", val),
+          onChanged: (val) =>
+              _updateQuestion(type, questionIndex, "essayAnswer", val),
         ),
       ],
     );
@@ -687,7 +777,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
 
   bool showManualForm = false;
   String? questionInputType; // 'manual' or 'file'
-  
+
   // متغيرات لإدارة الملف المختار
   PlatformFile? selectedFile;
   bool isFileSelected = false;
@@ -723,11 +813,13 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
             ),
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                      icon: const Icon(Icons.arrow_back_ios,
+                          color: Colors.white, size: 24),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(width: 8),
@@ -748,35 +840,62 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
             ),
           ),
         ),
-        body: Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
-              ),
-              width: double.infinity,
-              height: double.infinity,
+        body: Stack(children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
             ),
-            // تحسين CustomPaint - استخدام RepaintBoundary مع تحسين الأداء
-            RepaintBoundary(
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: const _MeshBackgroundPainter(),
-                isComplex: false,
-                willChange: false,
-              ),
+            width: double.infinity,
+            height: double.infinity,
+          ),
+          // تحسين CustomPaint - استخدام RepaintBoundary مع تحسين الأداء
+          RepaintBoundary(
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: const _MeshBackgroundPainter(),
+              isComplex: false,
+              willChange: false,
             ),
-            RepaintBoundary(
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: _GridPainter(gridColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
-                isComplex: false,
-                willChange: false,
-              ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _GridPainter(
+                  gridColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : Colors.black),
+              isComplex: false,
+              willChange: false,
             ),
-            SafeArea(
-              child: SingleChildScrollView(
-                child: Padding(
+          ),
+          SafeArea(
+            child: BlocBuilder<ProfileBloc, ProfileState>(
+              bloc: _profileBloc,
+              builder: (context, state) {
+                if (state is ProfileLoading || state is ProfileInitial) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is ProfileError) {
+                  return Center(
+                    child: Text(
+                      state.message,
+                      style: const TextStyle(
+                          color: Colors.red, fontWeight: FontWeight.bold),
+                    ),
+                  );
+                }
+
+                final loaded = state as ProfileLoaded;
+                final classes = loaded.classes;
+                final schoolsList = _buildSchools(classes);
+                final stagesList = _buildStages(classes, selectedSchool);
+                final sectionsList =
+                    _buildSections(classes, selectedSchool, selectedStage);
+                final subjectsList = _buildSubjects(
+                    classes, selectedSchool, selectedStage, selectedSection);
+
+                return SingleChildScrollView(
+                    child: Padding(
                   padding: const EdgeInsets.only(top: 32, bottom: 32),
                   child: Form(
                     key: _formKey,
@@ -787,11 +906,12 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         // (تظهر دائماً)
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 8),
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
-                              children: schools.map((school) {
+                              children: schoolsList.map((school) {
                                 final isSelected = selectedSchool == school;
                                 return Container(
                                   margin: const EdgeInsets.only(left: 12),
@@ -799,33 +919,42 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                     color: Colors.transparent,
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(25),
-                                                                              onTap: () {
-                                          if (mounted) {
-                                            setState(() {
-                                              selectedSchool = school;
-                                              selectedStage = null;
-                                              selectedSection = null;
-                                              selectedSubject = null;
-                                              questionInputType = null;
-                                            });
-                                          }
-                                        },
+                                      onTap: () {
+                                        if (mounted) {
+                                          setState(() {
+                                            selectedSchool = school;
+                                            selectedStage = null;
+                                            selectedSection = null;
+                                            selectedSubject = null;
+                                            questionInputType = null;
+                                          });
+                                        }
+                                      },
                                       child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 12),
                                         decoration: BoxDecoration(
                                           gradient: isSelected
                                               ? const LinearGradient(
-                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                  colors: [
+                                                    Color(0xFF1976D2),
+                                                    Color(0xFF64B5F6)
+                                                  ],
                                                   begin: Alignment.centerRight,
                                                   end: Alignment.centerLeft,
                                                 )
                                               : null,
-                                          color: isSelected ? null : Theme.of(context).cardColor,
-                                          borderRadius: BorderRadius.circular(25),
+                                          color: isSelected
+                                              ? null
+                                              : Theme.of(context).cardColor,
+                                          borderRadius:
+                                              BorderRadius.circular(25),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
+                                              color:
+                                                  Colors.black.withOpacity(0.1),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2),
                                             ),
@@ -834,7 +963,13 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                         child: Text(
                                           school,
                                           style: TextStyle(
-                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            color: isSelected
+                                                ? Colors.white
+                                                : Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.color ??
+                                                    const Color(0xFF233A5A),
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16,
                                           ),
@@ -851,11 +986,12 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         if (selectedSchool != null)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 8),
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
-                                children: stages.map((stage) {
+                                children: stagesList.map((stage) {
                                   final isSelected = selectedStage == stage;
                                   return Container(
                                     margin: const EdgeInsets.only(left: 12),
@@ -874,21 +1010,31 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           }
                                         },
                                         child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                          duration:
+                                              const Duration(milliseconds: 200),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 20, vertical: 12),
                                           decoration: BoxDecoration(
                                             gradient: isSelected
                                                 ? const LinearGradient(
-                                                    colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                    begin: Alignment.centerRight,
+                                                    colors: [
+                                                      Color(0xFF1976D2),
+                                                      Color(0xFF64B5F6)
+                                                    ],
+                                                    begin:
+                                                        Alignment.centerRight,
                                                     end: Alignment.centerLeft,
                                                   )
                                                 : null,
-                                            color: isSelected ? null : Theme.of(context).cardColor,
-                                            borderRadius: BorderRadius.circular(25),
+                                            color: isSelected
+                                                ? null
+                                                : Theme.of(context).cardColor,
+                                            borderRadius:
+                                                BorderRadius.circular(25),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(0.1),
+                                                color: Colors.black
+                                                    .withOpacity(0.1),
                                                 blurRadius: 8,
                                                 offset: const Offset(0, 2),
                                               ),
@@ -897,7 +1043,13 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           child: Text(
                                             stage,
                                             style: TextStyle(
-                                              color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : Theme.of(context)
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.color ??
+                                                      const Color(0xFF233A5A),
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
                                             ),
@@ -914,11 +1066,12 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         if (selectedStage != null)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 8),
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
-                                children: sections.map((section) {
+                                children: sectionsList.map((section) {
                                   final isSelected = selectedSection == section;
                                   return Container(
                                     margin: const EdgeInsets.only(left: 12),
@@ -936,21 +1089,31 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           }
                                         },
                                         child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                          duration:
+                                              const Duration(milliseconds: 200),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 20, vertical: 12),
                                           decoration: BoxDecoration(
                                             gradient: isSelected
                                                 ? const LinearGradient(
-                                                    colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                    begin: Alignment.centerRight,
+                                                    colors: [
+                                                      Color(0xFF1976D2),
+                                                      Color(0xFF64B5F6)
+                                                    ],
+                                                    begin:
+                                                        Alignment.centerRight,
                                                     end: Alignment.centerLeft,
                                                   )
                                                 : null,
-                                            color: isSelected ? null : Theme.of(context).cardColor,
-                                            borderRadius: BorderRadius.circular(25),
+                                            color: isSelected
+                                                ? null
+                                                : Theme.of(context).cardColor,
+                                            borderRadius:
+                                                BorderRadius.circular(25),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(0.1),
+                                                color: Colors.black
+                                                    .withOpacity(0.1),
                                                 blurRadius: 8,
                                                 offset: const Offset(0, 2),
                                               ),
@@ -959,7 +1122,13 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           child: Text(
                                             section,
                                             style: TextStyle(
-                                              color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : Theme.of(context)
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.color ??
+                                                      const Color(0xFF233A5A),
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
                                             ),
@@ -981,7 +1150,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
-                                children: subjects.map((subject) {
+                                children: subjectsList.map((subject) {
                                   final isSelected = selectedSubject == subject;
                                   return Container(
                                     margin: const EdgeInsets.only(left: 12),
@@ -998,21 +1167,31 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           }
                                         },
                                         child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                          duration:
+                                              const Duration(milliseconds: 200),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 20, vertical: 12),
                                           decoration: BoxDecoration(
                                             gradient: isSelected
                                                 ? const LinearGradient(
-                                                    colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                    begin: Alignment.centerRight,
+                                                    colors: [
+                                                      Color(0xFF1976D2),
+                                                      Color(0xFF64B5F6)
+                                                    ],
+                                                    begin:
+                                                        Alignment.centerRight,
                                                     end: Alignment.centerLeft,
                                                   )
                                                 : null,
-                                            color: isSelected ? null : Theme.of(context).cardColor,
-                                            borderRadius: BorderRadius.circular(25),
+                                            color: isSelected
+                                                ? null
+                                                : Theme.of(context).cardColor,
+                                            borderRadius:
+                                                BorderRadius.circular(25),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(0.1),
+                                                color: Colors.black
+                                                    .withOpacity(0.1),
                                                 blurRadius: 8,
                                                 offset: const Offset(0, 2),
                                               ),
@@ -1021,7 +1200,13 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           child: Text(
                                             subject,
                                             style: TextStyle(
-                                              color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : Theme.of(context)
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.color ??
+                                                      const Color(0xFF233A5A),
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
                                             ),
@@ -1038,16 +1223,22 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         // --- نهاية الاختيارات ---
 
                         // بعد اختيار المادة فقط تظهر خيارات نوع الأسئلة
-                        if (selectedSubject != null && questionInputType == null)
+                        if (selectedSubject != null &&
+                            questionInputType == null)
                           Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 24.0),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 24.0, horizontal: 24.0),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.edit, color: Colors.white),
-                                    label: const Text('إنشاء الأسئلة يدويًا', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    icon: const Icon(Icons.edit,
+                                        color: Colors.white),
+                                    label: const Text('إنشاء الأسئلة يدويًا',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16)),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF1976D2),
                                       foregroundColor: Colors.white,
@@ -1055,7 +1246,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(25),
                                       ),
-                                      padding: const EdgeInsets.symmetric(vertical: 18),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 18),
                                     ),
                                     onPressed: () {
                                       if (mounted) {
@@ -1069,8 +1261,12 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                 const SizedBox(width: 24),
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.insert_drive_file, color: Colors.white),
-                                    label: const Text('رفع ملف', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    icon: const Icon(Icons.insert_drive_file,
+                                        color: Colors.white),
+                                    label: const Text('رفع ملف',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16)),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF1976D2),
                                       foregroundColor: Colors.white,
@@ -1078,7 +1274,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(25),
                                       ),
-                                      padding: const EdgeInsets.symmetric(vertical: 18),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 18),
                                     ),
                                     onPressed: _pickAnyFile,
                                   ),
@@ -1102,14 +1299,19 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(type['icon'] as IconData, color: iconColor, size: 24),
+                                        Icon(type['icon'] as IconData,
+                                            color: iconColor, size: 24),
                                         const SizedBox(width: 8),
                                         Text(
                                           type['label'] as String,
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 18,
-                                            color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                            color: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.color ??
+                                                const Color(0xFF233A5A),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
@@ -1126,34 +1328,47 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                     const SizedBox(height: 8),
                                     ListView.builder(
                                       shrinkWrap: true,
-                                      physics: const NeverScrollableScrollPhysics(),
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
                                       itemCount: questions.length,
                                       addAutomaticKeepAlives: false,
                                       addRepaintBoundaries: true,
-                                      itemBuilder: (context, questionIndex) => Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                      itemBuilder: (context, questionIndex) =>
+                                          Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
-                                              Icon(Icons.question_mark, color: iconColor, size: 16),
+                                              Icon(Icons.question_mark,
+                                                  color: iconColor, size: 16),
                                               const SizedBox(width: 8),
                                               Text(
                                                 'سؤال ${questionIndex + 1}',
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 16,
-                                                  color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                                  color: Theme.of(context)
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.color ??
+                                                      const Color(0xFF233A5A),
                                                 ),
                                               ),
                                               const Spacer(),
                                               IconButton(
-                                                icon: Icon(Icons.delete, color: Colors.red[400], size: 20),
-                                                onPressed: () => _removeQuestion(typeValue, questionIndex),
+                                                icon: Icon(Icons.delete,
+                                                    color: Colors.red[400],
+                                                    size: 20),
+                                                onPressed: () =>
+                                                    _removeQuestion(typeValue,
+                                                        questionIndex),
                                               ),
                                             ],
                                           ),
                                           const SizedBox(height: 8),
-                                          _buildQuestionInput(typeValue, questionIndex),
+                                          _buildQuestionInput(
+                                              typeValue, questionIndex),
                                           const SizedBox(height: 16),
                                         ],
                                       ),
@@ -1167,12 +1382,16 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           foregroundColor: iconColor,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                            side: BorderSide(color: iconColor, width: 2),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            side: BorderSide(
+                                                color: iconColor, width: 2),
                                           ),
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
                                         ),
-                                        icon: Icon(Icons.add_circle_outline, color: iconColor),
+                                        icon: Icon(Icons.add_circle_outline,
+                                            color: iconColor),
                                         label: Text(
                                           'إضافة سؤال ${type['label']}',
                                           style: TextStyle(
@@ -1181,7 +1400,8 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                             fontSize: 16,
                                           ),
                                         ),
-                                        onPressed: () => _addQuestion(typeValue),
+                                        onPressed: () =>
+                                            _addQuestion(typeValue),
                                       ),
                                     ),
                                   ],
@@ -1198,9 +1418,11 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(20),
                                     ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 20),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 38, vertical: 20),
                                   ),
-                                  icon: const Icon(Icons.send, color: Colors.white, size: 24),
+                                  icon: const Icon(Icons.send,
+                                      color: Colors.white, size: 24),
                                   label: const Text(
                                     'إرسال الأسئلة',
                                     style: TextStyle(
@@ -1218,9 +1440,11 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                         if (questionInputType == 'file')
                           Center(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 32.0, horizontal: 12),
                               child: Container(
-                                constraints: const BoxConstraints(maxWidth: 500),
+                                constraints:
+                                    const BoxConstraints(maxWidth: 500),
                                 decoration: BoxDecoration(
                                   color: Theme.of(context).cardColor,
                                   borderRadius: BorderRadius.circular(25),
@@ -1232,30 +1456,46 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                     ),
                                   ],
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 32, horizontal: 24),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     if (!isFileSelected) ...[
                                       // حالة عدم اختيار ملف
-                                      const Icon(Icons.insert_drive_file, color: Color(0xFF1976D2), size: 48),
+                                      const Icon(Icons.insert_drive_file,
+                                          color: Color(0xFF1976D2), size: 48),
                                       const SizedBox(height: 18),
                                       Text(
                                         'رفع ملف لأسئلة الامتحان',
-                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A)),
+                                        style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Theme.of(context)
+                                                    .textTheme
+                                                    .titleLarge
+                                                    ?.color ??
+                                                const Color(0xFF233A5A)),
                                       ),
                                       const SizedBox(height: 18),
                                       ElevatedButton.icon(
-                                        icon: const Icon(Icons.upload_file, color: Colors.white),
-                                        label: const Text('اختر ملف', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                        icon: const Icon(Icons.upload_file,
+                                            color: Colors.white),
+                                        label: const Text('اختر ملف',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16)),
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF1976D2),
+                                          backgroundColor:
+                                              const Color(0xFF1976D2),
                                           foregroundColor: Colors.white,
                                           elevation: 4,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(25),
+                                            borderRadius:
+                                                BorderRadius.circular(25),
                                           ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 32, vertical: 18),
                                         ),
                                         onPressed: _pickAnyFile,
                                       ),
@@ -1265,12 +1505,17 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFE3F2FD),
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(color: const Color(0xFF1976D2), width: 2),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                              color: const Color(0xFF1976D2),
+                                              width: 2),
                                         ),
                                         child: Column(
                                           children: [
-                                            const Icon(Icons.insert_drive_file, color: Color(0xFF1976D2), size: 48),
+                                            const Icon(Icons.insert_drive_file,
+                                                color: Color(0xFF1976D2),
+                                                size: 48),
                                             const SizedBox(height: 16),
                                             Text(
                                               selectedFile!.name,
@@ -1294,21 +1539,31 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                       ),
                                       const SizedBox(height: 24),
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceEvenly,
                                         children: [
                                           // زر إلغاء
                                           Expanded(
                                             child: ElevatedButton.icon(
-                                              icon: const Icon(Icons.cancel, color: Colors.white),
-                                              label: const Text('إلغاء', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                              icon: const Icon(Icons.cancel,
+                                                  color: Colors.white),
+                                              label: const Text('إلغاء',
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16)),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.red[400],
+                                                backgroundColor:
+                                                    Colors.red[400],
                                                 foregroundColor: Colors.white,
                                                 elevation: 4,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(20),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                 ),
-                                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 16),
                                               ),
                                               onPressed: _cancelFile,
                                             ),
@@ -1317,16 +1572,26 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           // زر اختيار ملف آخر
                                           Expanded(
                                             child: ElevatedButton.icon(
-                                              icon: const Icon(Icons.file_upload, color: Colors.white),
-                                              label: const Text('ملف آخر', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                              icon: const Icon(
+                                                  Icons.file_upload,
+                                                  color: Colors.white),
+                                              label: const Text('ملف آخر',
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16)),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(0xFFFF9800),
+                                                backgroundColor:
+                                                    const Color(0xFFFF9800),
                                                 foregroundColor: Colors.white,
                                                 elevation: 4,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(20),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                 ),
-                                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 16),
                                               ),
                                               onPressed: _pickAnyFile,
                                             ),
@@ -1335,16 +1600,25 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                                           // زر إرسال
                                           Expanded(
                                             child: ElevatedButton.icon(
-                                              icon: const Icon(Icons.send, color: Colors.white),
-                                              label: const Text('إرسال', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                              icon: const Icon(Icons.send,
+                                                  color: Colors.white),
+                                              label: const Text('إرسال',
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16)),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(0xFF4CAF50),
+                                                backgroundColor:
+                                                    const Color(0xFF4CAF50),
                                                 foregroundColor: Colors.white,
                                                 elevation: 4,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(20),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                 ),
-                                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 16),
                                               ),
                                               onPressed: _submitFile,
                                             ),
@@ -1360,11 +1634,11 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
                       ],
                     ),
                   ),
-                ),
-              ),
+                ));
+              },
             ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
@@ -1373,7 +1647,7 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
 // تحسين CustomPaint مع const constructors
 class _MeshBackgroundPainter extends CustomPainter {
   const _MeshBackgroundPainter();
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final paintLine = Paint()
@@ -1382,7 +1656,7 @@ class _MeshBackgroundPainter extends CustomPainter {
     final paintDot = Paint()
       ..color = const Color(0xFF3B5998).withAlpha(25)
       ..style = PaintingStyle.fill;
-    
+
     // تحسين الحلقات
     for (double y = 40; y < size.height; y += 120) {
       for (double x = 0; x < size.width; x += 180) {
@@ -1390,7 +1664,7 @@ class _MeshBackgroundPainter extends CustomPainter {
         canvas.drawLine(Offset(x + 60, y + 80), Offset(x + 180, y), paintLine);
       }
     }
-    
+
     for (double y = 30; y < size.height; y += 100) {
       for (double x = 20; x < size.width; x += 140) {
         canvas.drawCircle(Offset(x, y), 3, paintDot);
@@ -1404,17 +1678,17 @@ class _MeshBackgroundPainter extends CustomPainter {
 
 class _GridPainter extends CustomPainter {
   final Color gridColor;
-  
+
   const _GridPainter({required this.gridColor});
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = gridColor.withAlpha(16)
       ..strokeWidth = 1;
-    
+
     const step = 40.0;
-    
+
     // تحسين رسم الخطوط
     for (double x = 0; x < size.width; x += step) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
@@ -1423,8 +1697,7 @@ class _GridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
-  
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

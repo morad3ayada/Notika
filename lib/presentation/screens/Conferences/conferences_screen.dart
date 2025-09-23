@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../bloc/profile/profile_bloc.dart';
+import '../../../bloc/profile/profile_event.dart';
+import '../../../bloc/profile/profile_state.dart';
+import '../../../data/models/profile_models.dart';
+import '../../../di/injector.dart';
+import '../../../data/repositories/profile_repository.dart';
 
 class ConferencesScreen extends StatefulWidget {
   const ConferencesScreen({super.key});
@@ -8,19 +15,47 @@ class ConferencesScreen extends StatefulWidget {
 }
 
 class _ConferencesScreenState extends State<ConferencesScreen> {
+  String? selectedSchool;
   String? selectedStage;
   String? selectedSection;
-  
-  final List<String> stages = [
-    'الأول ابتدائي',
-    'الثاني ابتدائي',
-    'الثالث ابتدائي',
-    'الرابع ابتدائي',
-    'الخامس ابتدائي',
-    'السادس ابتدائي',
-  ];
-  
-  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
+  String? selectedSubject;
+  late final ProfileBloc _profileBloc;
+
+  // Helpers to derive dynamic lists from TeacherClass
+  List<String> _buildSchools(List<TeacherClass> classes) {
+    final set = <String>{};
+    for (final c in classes) {
+      if ((c.schoolName ?? '').trim().isNotEmpty) set.add(c.schoolName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildStages(List<TeacherClass> classes, String? school) {
+    if (school == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school)) {
+      if ((c.levelName ?? '').trim().isNotEmpty) set.add(c.levelName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSections(List<TeacherClass> classes, String? school, String? stage) {
+    if (school == null || stage == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage)) {
+      if ((c.className ?? '').trim().isNotEmpty) set.add(c.className!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSubjects(List<TeacherClass> classes, String? school, String? stage, String? section) {
+    if (school == null || stage == null || section == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage && e.className == section)) {
+      if ((c.subjectName ?? '').trim().isNotEmpty) set.add(c.subjectName!.trim());
+    }
+    return set.toList();
+  }
 
   // Sample data for conferences
   final List<Map<String, dynamic>> upcomingConferences = [
@@ -277,12 +312,19 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     _dateController.dispose();
     _timeController.dispose();
     _durationController.dispose();
     _meetingLinkController.dispose();
+    _profileBloc.close();
     super.dispose();
   }
 
@@ -316,6 +358,12 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
   }
 
   void _showAddConferenceDialog(BuildContext context) {
+    // Use local variables for instant UI feedback inside the bottom sheet
+    String? localSelectedSchool = selectedSchool;
+    String? localSelectedStage = selectedStage;
+    String? localSelectedSection = selectedSection;
+    String? localSelectedSubject = selectedSubject;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -337,10 +385,11 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                 topRight: Radius.circular(25),
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Row(
@@ -362,60 +411,124 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                     ],
                   ),
                 ),
-                  const SizedBox(height: 20),
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _titleController,
-                          decoration: InputDecoration(
-                            labelText: 'عنوان الجلسة',
-                            alignLabelWithHint: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF1976D2)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey[100],
+                const SizedBox(height: 20),
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _titleController,
+                        decoration: InputDecoration(
+                          labelText: 'عنوان الجلسة',
+                          alignLabelWithHint: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1976D2)),
                           ),
-                          textAlign: TextAlign.right,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'الرجاء إدخال عنوان الجلسة';
-                            }
-                            return null;
-                          },
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1976D2)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                        ),
+                        textAlign: TextAlign.right,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'الرجاء إدخال عنوان الجلسة';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
-                      _buildHorizontalSelector(
-                        items: stages,
-                        selected: selectedStage,
-                        onSelect: (value) {
-                          setState(() {
-                            selectedStage = value;
-                          });
+                      StatefulBuilder(
+                        builder: (context, setModalState) {
+                          return BlocBuilder<ProfileBloc, ProfileState>(
+                            bloc: _profileBloc,
+                            builder: (context, state) {
+                              if (state is ProfileLoading || state is ProfileInitial) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                                  child: Center(child: CircularProgressIndicator()),
+                                );
+                              }
+                              if (state is ProfileError) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Text(state.message, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                                );
+                              }
+                              final loaded = state as ProfileLoaded;
+                              final classes = loaded.classes;
+                              final schools = _buildSchools(classes);
+                              final stages = _buildStages(classes, localSelectedSchool);
+                              final sections = _buildSections(classes, localSelectedSchool, localSelectedStage);
+                              final subjects = _buildSubjects(classes, localSelectedSchool, localSelectedStage, localSelectedSection);
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildHorizontalSelector(
+                                    items: schools,
+                                    selected: localSelectedSchool,
+                                    onSelect: (val) {
+                                      setModalState(() {
+                                        localSelectedSchool = val;
+                                        localSelectedStage = null;
+                                        localSelectedSection = null;
+                                        localSelectedSubject = null;
+                                      });
+                                    },
+                                    label: 'المدرسة',
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (localSelectedSchool != null)
+                                    _buildHorizontalSelector(
+                                      items: stages,
+                                      selected: localSelectedStage,
+                                      onSelect: (val) {
+                                        setModalState(() {
+                                          localSelectedStage = val;
+                                          localSelectedSection = null;
+                                          localSelectedSubject = null;
+                                        });
+                                      },
+                                      label: 'المرحلة',
+                                    ),
+                                  if (localSelectedSchool != null) const SizedBox(height: 12),
+                                  if (localSelectedStage != null)
+                                    _buildHorizontalSelector(
+                                      items: sections,
+                                      selected: localSelectedSection,
+                                      onSelect: (val) {
+                                        setModalState(() {
+                                          localSelectedSection = val;
+                                          localSelectedSubject = null;
+                                        });
+                                      },
+                                      label: 'الشعبة',
+                                    ),
+                                  if (localSelectedStage != null) const SizedBox(height: 12),
+                                  if (localSelectedSection != null)
+                                    _buildHorizontalSelector(
+                                      items: subjects,
+                                      selected: localSelectedSubject,
+                                      onSelect: (val) {
+                                        setModalState(() {
+                                          localSelectedSubject = val;
+                                        });
+                                      },
+                                      label: 'المادة',
+                                    ),
+                                ],
+                              );
+                            },
+                          );
                         },
-                        label: 'المرحلة',
-                      ),
-                      const SizedBox(height: 16),
-                      _buildHorizontalSelector(
-                        items: sections,
-                        selected: selectedSection,
-                        onSelect: (value) {
-                          setState(() {
-                            selectedSection = value;
-                          });
-                        },
-                        label: 'الشعبة',
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -546,6 +659,13 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                           child: ElevatedButton(
                             onPressed: () {
                               if (_formKey.currentState!.validate()) {
+                                // Persist selections back to parent state
+                                setState(() {
+                                  selectedSchool = localSelectedSchool;
+                                  selectedStage = localSelectedStage;
+                                  selectedSection = localSelectedSection;
+                                  selectedSubject = localSelectedSubject;
+                                });
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
@@ -578,6 +698,7 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                   ),
                 ],
               ),
+            ),
           ),
         );
       },

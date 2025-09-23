@@ -5,6 +5,13 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:math';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../bloc/profile/profile_bloc.dart';
+import '../../../bloc/profile/profile_event.dart';
+import '../../../bloc/profile/profile_state.dart';
+import '../../../data/models/profile_models.dart';
+import '../../../di/injector.dart';
+import '../../../data/repositories/profile_repository.dart';
 
 class PdfUploadScreen extends StatefulWidget {
   const PdfUploadScreen({super.key});
@@ -160,21 +167,44 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   String? selectedSubject;
   String? selectedUnit; // الفصل/الوحدة المختارة
   final List<String> units = []; // قائمة الفصول/الوحدات التي ينشئها المستخدم
-  final List<String> schools = [
-    'مدرسة بغداد',
-    'مدرسة الكوفة',
-    'مدرسة البصرة',
-  ];
-  final List<String> stages = [
-    'الأول ابتدائي',
-    'الثاني ابتدائي',
-    'الثالث ابتدائي',
-    'الرابع ابتدائي',
-    'الخامس ابتدائي',
-    'السادس ابتدائي',
-  ];
-  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
-  final List<String> subjects = ['اللغة العربية', 'التربية الإسلامية'];
+  late final ProfileBloc _profileBloc;
+
+  // Helpers to derive dynamic lists from TeacherClass
+  List<String> _buildSchools(List<TeacherClass> classes) {
+    final set = <String>{};
+    for (final c in classes) {
+      if ((c.schoolName ?? '').trim().isNotEmpty) set.add(c.schoolName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildStages(List<TeacherClass> classes, String? school) {
+    if (school == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school)) {
+      if ((c.levelName ?? '').trim().isNotEmpty) set.add(c.levelName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSections(List<TeacherClass> classes, String? school, String? stage) {
+    if (school == null || stage == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage)) {
+      if ((c.className ?? '').trim().isNotEmpty) set.add(c.className!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSubjects(List<TeacherClass> classes, String? school, String? stage, String? section) {
+    if (school == null || stage == null || section == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school && e.levelName == stage && e.className == section)) {
+      if ((c.subjectName ?? '').trim().isNotEmpty) set.add(c.subjectName!.trim());
+    }
+    return set.toList();
+  }
+
   final TextEditingController detailsController = TextEditingController();
 
   FlutterSoundRecorder? _recorder;
@@ -186,10 +216,12 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
     super.initState();
     _recorder = FlutterSoundRecorder();
     _recorder!.openRecorder();
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
   }
 
   @override
   void dispose() {
+    _profileBloc.close();
     _recorder?.closeRecorder();
     super.dispose();
   }
@@ -247,7 +279,7 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
     final controller = TextEditingController();
     final localUnits = List<String>.from(units);
     String? localSelectedUnit = selectedUnit;
-    
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -510,249 +542,272 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
             painter: _GridPainter(gridColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
           ),
           SafeArea(
-            child: Directionality(
-              textDirection: TextDirection.rtl,
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 32, bottom: 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // اختيارات المدرسة والمرحلة والشعبة والمادة في الأعلى
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.only(top: 8, bottom: 8),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: schools.map((school) {
-                              final isSelected = selectedSchool == school;
-                              return Container(
-                                margin: const EdgeInsets.only(right: 12),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(25),
-                                    onTap: () {
-                                      setState(() {
-                                        selectedSchool = school;
-                                        selectedStage = null;
-                                        selectedSection = null;
-                                        selectedSubject = null;
-                                      });
-                                    },
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        gradient: isSelected
-                                            ? const LinearGradient(
-                                                colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                begin: Alignment.centerLeft,
-                                                end: Alignment.centerRight,
-                                              )
-                                            : null,
-                                        color: isSelected ? null : Theme.of(context).cardColor,
+            child: BlocBuilder<ProfileBloc, ProfileState>(
+              bloc: _profileBloc,
+              builder: (context, state) {
+                if (state is ProfileLoading || state is ProfileInitial) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is ProfileError) {
+                  return Center(
+                    child: Text(
+                      state.message,
+                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                    ),
+                  );
+                }
+
+                final loaded = state as ProfileLoaded;
+                final classes = loaded.classes;
+                final schoolsList = _buildSchools(classes);
+                final stagesList = _buildStages(classes, selectedSchool);
+                final sectionsList = _buildSections(classes, selectedSchool, selectedStage);
+                final subjectsList = _buildSubjects(classes, selectedSchool, selectedStage, selectedSection);
+
+                return Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(top: 32, bottom: 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // اختيارات المدرسة والمرحلة والشعبة والمادة في الأعلى
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.only(top: 8, bottom: 8),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: schoolsList.map((school) {
+                                  final isSelected = selectedSchool == school;
+                                  return Container(
+                                    margin: const EdgeInsets.only(right: 12),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
                                         borderRadius: BorderRadius.circular(25),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.1),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 2),
+                                        onTap: () {
+                                          setState(() {
+                                            selectedSchool = school;
+                                            selectedStage = null;
+                                            selectedSection = null;
+                                            selectedSubject = null;
+                                          });
+                                        },
+                                        child: AnimatedContainer(
+                                          duration: const Duration(milliseconds: 200),
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                          decoration: BoxDecoration(
+                                            gradient: isSelected
+                                                ? const LinearGradient(
+                                                    colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                    begin: Alignment.centerLeft,
+                                                    end: Alignment.centerRight,
+                                                  )
+                                                : null,
+                                            color: isSelected ? null : Theme.of(context).cardColor,
+                                            borderRadius: BorderRadius.circular(25),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.1),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                      child: Text(
-                                        school,
-                                        style: TextStyle(
-                                          color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                          child: Text(
+                                            school,
+                                            style: TextStyle(
+                                              color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                          if (selectedSchool != null)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.only(top: 8, bottom: 8),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: stagesList.map((stage) {
+                                    final isSelected = selectedStage == stage;
+                                    return Container(
+                                      margin: const EdgeInsets.only(right: 12),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(25),
+                                          onTap: () {
+                                            setState(() {
+                                              selectedStage = stage;
+                                              selectedSection = null;
+                                              selectedSubject = null;
+                                            });
+                                          },
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                            decoration: BoxDecoration(
+                                              gradient: isSelected
+                                                  ? const LinearGradient(
+                                                      colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                      begin: Alignment.centerLeft,
+                                                      end: Alignment.centerRight,
+                                                    )
+                                                  : null,
+                                              color: isSelected ? null : Theme.of(context).cardColor,
+                                              borderRadius: BorderRadius.circular(25),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.1),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Text(
+                                              stage,
+                                              style: TextStyle(
+                                                color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                      if (selectedSchool != null)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.only(top: 8, bottom: 8),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: stages.map((stage) {
-                                final isSelected = selectedStage == stage;
-                                return Container(
-                                  margin: const EdgeInsets.only(right: 12),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(25),
-                                      onTap: () {
-                                        setState(() {
-                                          selectedStage = stage;
-                                          selectedSection = null;
-                                          selectedSubject = null;
-                                        });
-                                      },
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                        decoration: BoxDecoration(
-                                          gradient: isSelected
-                                              ? const LinearGradient(
-                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                  begin: Alignment.centerLeft,
-                                                  end: Alignment.centerRight,
-                                                )
-                                              : null,
-                                          color: isSelected ? null : Theme.of(context).cardColor,
+                              ),
+                            ),
+                          if (selectedStage != null)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.only(top: 8, bottom: 8),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: sectionsList.map((section) {
+                                    final isSelected = selectedSection == section;
+                                    return Container(
+                                      margin: const EdgeInsets.only(right: 12),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
                                           borderRadius: BorderRadius.circular(25),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2),
+                                          onTap: () {
+                                            setState(() {
+                                              selectedSection = section;
+                                              selectedSubject = null;
+                                            });
+                                          },
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                            decoration: BoxDecoration(
+                                              gradient: isSelected
+                                                  ? const LinearGradient(
+                                                      colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                      begin: Alignment.centerLeft,
+                                                      end: Alignment.centerRight,
+                                                    )
+                                                  : null,
+                                              color: isSelected ? null : Theme.of(context).cardColor,
+                                              borderRadius: BorderRadius.circular(25),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.1),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                        child: Text(
-                                          stage,
-                                          style: TextStyle(
-                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            child: Text(
+                                              section,
+                                              style: TextStyle(
+                                                color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      if (selectedStage != null)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.only(top: 8, bottom: 8),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: sections.map((section) {
-                                final isSelected = selectedSection == section;
-                                return Container(
-                                  margin: const EdgeInsets.only(right: 12),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(25),
-                                      onTap: () {
-                                        setState(() {
-                                          selectedSection = section;
-                                          selectedSubject = null;
-                                        });
-                                      },
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                        decoration: BoxDecoration(
-                                          gradient: isSelected
-                                              ? const LinearGradient(
-                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                  begin: Alignment.centerLeft,
-                                                  end: Alignment.centerRight,
-                                                )
-                                              : null,
-                                          color: isSelected ? null : Theme.of(context).cardColor,
+                          if (selectedSection != null)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.only(top: 8, bottom: 8),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: subjectsList.map((subject) {
+                                    final isSelected = selectedSubject == subject;
+                                    return Container(
+                                      margin: const EdgeInsets.only(right: 12),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
                                           borderRadius: BorderRadius.circular(25),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2),
+                                          onTap: () {
+                                            setState(() {
+                                              selectedSubject = subject;
+                                            });
+                                          },
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                            decoration: BoxDecoration(
+                                              gradient: isSelected
+                                                  ? const LinearGradient(
+                                                      colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                                      begin: Alignment.centerLeft,
+                                                      end: Alignment.centerRight,
+                                                    )
+                                                  : null,
+                                              color: isSelected ? null : Theme.of(context).cardColor,
+                                              borderRadius: BorderRadius.circular(25),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.1),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                        child: Text(
-                                          section,
-                                          style: TextStyle(
-                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            child: Text(
+                                              subject,
+                                              style: TextStyle(
+                                                color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
                           ),
-                        ),
-                      if (selectedSection != null)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.only(top: 8, bottom: 8),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: subjects.map((subject) {
-                                final isSelected = selectedSubject == subject;
-                                return Container(
-                                  margin: const EdgeInsets.only(right: 12),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(25),
-                                      onTap: () {
-                                        setState(() {
-                                          selectedSubject = subject;
-                                        });
-                                      },
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                        decoration: BoxDecoration(
-                                          gradient: isSelected
-                                              ? const LinearGradient(
-                                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                                  begin: Alignment.centerLeft,
-                                                  end: Alignment.centerRight,
-                                                )
-                                              : null,
-                                          color: isSelected ? null : Theme.of(context).cardColor,
-                                          borderRadius: BorderRadius.circular(25),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Text(
-                                          subject,
-                                          style: TextStyle(
-                                            color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ),
-                      if (selectedSubject != null) ...[
+        
+                        if (selectedSubject != null) ...[
                         const SizedBox(height: 20),
                         // اختيار ملف (صورة/فيديو/PDF)
                         GestureDetector(
@@ -976,9 +1031,9 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
         ]),
               ),
             ),
-          ),
-        ),
-      ]),
+          );
+  })
+    )]),
     );
   }
 }

@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../bloc/profile/profile_bloc.dart';
+import '../../../bloc/profile/profile_event.dart';
+import '../../../bloc/profile/profile_state.dart';
+import '../../../data/models/profile_models.dart';
+import '../../../di/injector.dart';
+import '../../../data/repositories/profile_repository.dart';
 import '../home/home_screen.dart';
 
 class AssignmentsScreen extends StatefulWidget {
@@ -14,22 +21,50 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   String? selectedStage;
   String? selectedSection;
   String? selectedSubject;
+  late final ProfileBloc _profileBloc;
 
-  final List<String> schools = [
-    'مدرسة بغداد',
-    'مدرسة الكوفة',
-    'مدرسة البصرة',
-  ];
-  final List<String> stages = [
-    'الأول ابتدائي',
-    'الثاني ابتدائي',
-    'الثالث ابتدائي',
-    'الرابع ابتدائي',
-    'الخامس ابتدائي',
-    'السادس ابتدائي',
-  ];
-  final List<String> sections = ['شعبة أ', 'شعبة ب', 'شعبة ج', 'شعبة د'];
-  final List<String> subjects = ['اللغة العربية', 'التربية الإسلامية'];
+  // القوائم سيتم بناؤها من بيانات الـ BLoC
+  List<String> _buildSchools(List<TeacherClass> classes) {
+    final set = <String>{};
+    for (final c in classes) {
+      if ((c.schoolName ?? '').trim().isNotEmpty) set.add(c.schoolName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildStages(List<TeacherClass> classes, String? school) {
+    if (school == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) => e.schoolName == school)) {
+      if ((c.levelName ?? '').trim().isNotEmpty) set.add(c.levelName!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSections(
+      List<TeacherClass> classes, String? school, String? stage) {
+    if (school == null || stage == null) return const [];
+    final set = <String>{};
+    for (final c in classes
+        .where((e) => e.schoolName == school && e.levelName == stage)) {
+      if ((c.className ?? '').trim().isNotEmpty) set.add(c.className!.trim());
+    }
+    return set.toList();
+  }
+
+  List<String> _buildSubjects(List<TeacherClass> classes, String? school,
+      String? stage, String? section) {
+    if (school == null || stage == null || section == null) return const [];
+    final set = <String>{};
+    for (final c in classes.where((e) =>
+        e.schoolName == school &&
+        e.levelName == stage &&
+        e.className == section)) {
+      if ((c.subjectName ?? '').trim().isNotEmpty)
+        set.add(c.subjectName!.trim());
+    }
+    return set.toList();
+  }
 
   // قائمة الواجبات
   List<Map<String, dynamic>> assignments = [];
@@ -37,8 +72,16 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   // حقول الواجب الجديد
   final TextEditingController _pageFromController = TextEditingController();
   final TextEditingController _pageToController = TextEditingController();
-  final TextEditingController _questionNumberController = TextEditingController();
+  final TextEditingController _questionNumberController =
+      TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())
+      ..add(const FetchProfile());
+  }
 
   void _addAssignment() {
     if (_formKey.currentState!.validate()) {
@@ -50,7 +93,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
           'details': _detailsController.text,
           'class': selectedSection,
         });
-        
+
         // مسح الحقول
         _pageFromController.clear();
         _pageToController.clear();
@@ -90,7 +133,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('تم إرسال ${assignments.length} واجب للشعبة $selectedSection'),
+        content:
+            Text('تم إرسال ${assignments.length} واجب للشعبة $selectedSection'),
         backgroundColor: const Color(0xFF1976D2),
         duration: const Duration(seconds: 2),
       ),
@@ -115,7 +159,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
         if (label != null) ...[
           Padding(
             padding: const EdgeInsets.only(right: 8, bottom: 4),
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(label,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
         SingleChildScrollView(
@@ -132,7 +177,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                     onTap: () => onSelect(item),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(
                         gradient: isSelected
                             ? const LinearGradient(
@@ -154,7 +200,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                       child: Text(
                         item,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
+                          color: isSelected
+                              ? Colors.white
+                              : Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.color ??
+                                  const Color(0xFF233A5A),
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
@@ -199,11 +251,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             ),
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                      icon: const Icon(Icons.arrow_back_ios,
+                          color: Colors.white, size: 24),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(width: 8),
@@ -224,432 +278,529 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             ),
           ),
         ),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // اختيارات المدرسة والمرحلة والشعبة
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0, right: 8, left: 8),
-                  child: buildHorizontalSelector(
-                    items: schools,
-                    selected: selectedSchool,
-                    onSelect: (val) {
-                      setState(() {
-                        selectedSchool = val;
-                        selectedStage = null;
-                        selectedSection = null;
-                      });
-                    },
-                    label: 'المدرسة',
-                  ),
+        body: BlocBuilder<ProfileBloc, ProfileState>(
+          bloc: _profileBloc,
+          builder: (context, state) {
+            if (state is ProfileLoading || state is ProfileInitial) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (state is ProfileError) {
+              return Center(
+                child: Text(
+                  state.message,
+                  style: const TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.bold),
                 ),
-                if (selectedSchool != null)
+              );
+            }
+
+            final loaded = state as ProfileLoaded;
+            final classes = loaded.classes;
+            final schools = _buildSchools(classes);
+            final stages = _buildStages(classes, selectedSchool);
+            final sections =
+                _buildSections(classes, selectedSchool, selectedStage);
+            final subjects = _buildSubjects(
+                classes, selectedSchool, selectedStage, selectedSection);
+
+            return SingleChildScrollView(
+                child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // اختيارات المدرسة والمرحلة والشعبة
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0, right: 8, left: 8),
                     child: buildHorizontalSelector(
-                      items: stages,
-                      selected: selectedStage,
+                      items: schools,
+                      selected: selectedSchool,
                       onSelect: (val) {
                         setState(() {
-                          selectedStage = val;
+                          selectedSchool = val;
+                          selectedStage = null;
                           selectedSection = null;
-                        });
-                      },
-                      label: 'المرحلة',
-                    ),
-                  ),
-                if (selectedStage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0, right: 8, left: 8),
-                    child: buildHorizontalSelector(
-                      items: sections,
-                      selected: selectedSection,
-                      onSelect: (val) {
-                        setState(() {
-                          selectedSection = val;
                           selectedSubject = null;
                         });
                       },
-                      label: 'الشعبة',
+                      label: 'المدرسة',
                     ),
                   ),
-                if (selectedSection != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0, right: 8, left: 8),
-                    child: buildHorizontalSelector(
-                      items: subjects,
-                      selected: selectedSubject,
-                      onSelect: (val) {
-                        setState(() {
-                          selectedSubject = val;
-                        });
-                      },
-                      label: 'المادة',
-                    ),
-                  ),
-                if (selectedSubject != null) ...[
-                  const SizedBox(height: 12),
-                  // رأس النموذج
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(16),
+                  if (selectedSchool != null)
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(top: 8.0, right: 8, left: 8),
+                      child: buildHorizontalSelector(
+                        items: stages,
+                        selected: selectedStage,
+                        onSelect: (val) {
+                          setState(() {
+                            selectedStage = val;
+                            selectedSection = null;
+                            selectedSubject = null;
+                          });
+                        },
+                        label: 'المرحلة',
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.assignment_add,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'إضافة واجب جديد',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // النموذج
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          // رقم الصفحة
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _pageFromController,
-                                  keyboardType: TextInputType.number,
-                                  style: TextStyle(
-                                    color: Theme.of(context).textTheme.bodyMedium?.color,
-                                  ),
-                                  decoration: InputDecoration(
-                                    labelText: 'من صفحة',
-                                    labelStyle: TextStyle(color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A)),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                                    ),
-                                    filled: true,
-                                    fillColor: Theme.of(context).cardColor,
-                                    prefixIcon: const Icon(Icons.arrow_back, color: Color(0xFF1976D2)),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'أدخل رقم الصفحة من';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _pageToController,
-                                  keyboardType: TextInputType.number,
-                                  style: TextStyle(
-                                    color: Theme.of(context).textTheme.bodyMedium?.color,
-                                  ),
-                                  decoration: InputDecoration(
-                                    labelText: 'إلى صفحة',
-                                    labelStyle: TextStyle(color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A)),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                                    ),
-                                    filled: true,
-                                    fillColor: Theme.of(context).cardColor,
-                                    prefixIcon: const Icon(Icons.arrow_forward, color: Color(0xFF1976D2)),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'أدخل رقم الصفحة إلى';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // عنوان الواجب
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            child: TextFormField(
-                              controller: _questionNumberController,
-                              keyboardType: TextInputType.text,
-                              style: TextStyle(
-                                color: Theme.of(context).textTheme.bodyMedium?.color,
-                              ),
-                              decoration: InputDecoration(
-                                labelText: 'عنوان الواجب',
-                                labelStyle: TextStyle(color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A)),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                                ),
-                                filled: true,
-                                fillColor: Theme.of(context).cardColor,
-                                prefixIcon: const Icon(Icons.title, color: Color(0xFF1976D2)),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'أدخل عنوان الواجب';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          // التفاصيل
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 20),
-                            child: TextFormField(
-                              controller: _detailsController,
-                              maxLines: 3,
-                              style: TextStyle(
-                                color: Theme.of(context).textTheme.bodyMedium?.color,
-                              ),
-                              decoration: InputDecoration(
-                                labelText: 'تفاصيل إضافية',
-                                labelStyle: TextStyle(color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A)),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFF1976D2), width: 2),
-                                ),
-                                filled: true,
-                                fillColor: Theme.of(context).cardColor,
-                                prefixIcon: const Icon(Icons.info_outline, color: Color(0xFF1976D2)),
-                              ),
-                            ),
-                          ),
-                          // زر إضافة الواجب
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _addAssignment,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1976D2),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 4,
-                              ),
-                              icon: const Icon(Icons.add),
-                              label: const Text(
-                                'إضافة الواجب',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                  if (selectedStage != null)
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(top: 8.0, right: 8, left: 8),
+                      child: buildHorizontalSelector(
+                        items: sections,
+                        selected: selectedSection,
+                        onSelect: (val) {
+                          setState(() {
+                            selectedSection = val;
+                            selectedSubject = null;
+                          });
+                        },
+                        label: 'الشعبة',
                       ),
                     ),
-                  ),
-                  // قائمة الواجبات المضافة
-                  if (assignments.isNotEmpty) ...[
+                  if (selectedSection != null)
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(top: 8.0, right: 8, left: 8),
+                      child: buildHorizontalSelector(
+                        items: subjects,
+                        selected: selectedSubject,
+                        onSelect: (val) {
+                          setState(() {
+                            selectedSubject = val;
+                          });
+                        },
+                        label: 'المادة',
+                      ),
+                    ),
+                  if (selectedSubject != null) ...[
+                    const SizedBox(height: 12),
+                    // رأس النموذج
                     Container(
-                      height: 200,
-                      margin: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                      padding: const EdgeInsets.all(16),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.assignment_add,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'إضافة واجب جديد',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
                           ),
                         ],
                       ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                topRight: Radius.circular(16),
-                              ),
-                            ),
-                            child: Row(
+                    ),
+                    // النموذج
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            // رقم الصفحة
+                            Row(
                               children: [
-                                const Icon(
-                                  Icons.list,
-                                  color: Colors.white,
-                                  size: 24,
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _pageFromController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color,
+                                    ),
+                                    decoration: InputDecoration(
+                                      labelText: 'من صفحة',
+                                      labelStyle: TextStyle(
+                                          color: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.color ??
+                                              const Color(0xFF233A5A)),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFE0E0E0)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFE0E0E0)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFF1976D2), width: 2),
+                                      ),
+                                      filled: true,
+                                      fillColor: Theme.of(context).cardColor,
+                                      prefixIcon: const Icon(Icons.arrow_back,
+                                          color: Color(0xFF1976D2)),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'أدخل رقم الصفحة من';
+                                      }
+                                      return null;
+                                    },
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
-                                Text(
-                                  'الواجبات المضافة (${assignments.length})',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _pageToController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color,
+                                    ),
+                                    decoration: InputDecoration(
+                                      labelText: 'إلى صفحة',
+                                      labelStyle: TextStyle(
+                                          color: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.color ??
+                                              const Color(0xFF233A5A)),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFE0E0E0)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFE0E0E0)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFF1976D2), width: 2),
+                                      ),
+                                      filled: true,
+                                      fillColor: Theme.of(context).cardColor,
+                                      prefixIcon: const Icon(
+                                          Icons.arrow_forward,
+                                          color: Color(0xFF1976D2)),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'أدخل رقم الصفحة إلى';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                          Expanded(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.all(8),
-                              itemCount: assignments.length,
-                              itemBuilder: (context, index) {
-                                final assignment = assignments[index];
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).cardColor,
+                            const SizedBox(height: 16),
+                            // عنوان الواجب
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              child: TextFormField(
+                                controller: _questionNumberController,
+                                keyboardType: TextInputType.text,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'عنوان الواجب',
+                                  labelStyle: TextStyle(
+                                      color: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.color ??
+                                          const Color(0xFF233A5A)),
+                                  border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Theme.of(context).dividerColor),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'من صفحة ${assignment['pageFrom']} إلى ${assignment['pageTo']} - سؤال ${assignment['questionNumber']}',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                                color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              assignment['details'],
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Theme.of(context).textTheme.bodyMedium?.color,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete, color: Color(0xFFE53935)),
-                                        onPressed: () => _removeAssignment(index),
-                                      ),
-                                    ],
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
                                   ),
-                                );
-                              },
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF1976D2), width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: Theme.of(context).cardColor,
+                                  prefixIcon: const Icon(Icons.title,
+                                      color: Color(0xFF1976D2)),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'أدخل عنوان الواجب';
+                                  }
+                                  return null;
+                                },
+                              ),
                             ),
+                            // التفاصيل
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 20),
+                              child: TextFormField(
+                                controller: _detailsController,
+                                maxLines: 3,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'تفاصيل إضافية',
+                                  labelStyle: TextStyle(
+                                      color: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.color ??
+                                          const Color(0xFF233A5A)),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF1976D2), width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: Theme.of(context).cardColor,
+                                  prefixIcon: const Icon(Icons.info_outline,
+                                      color: Color(0xFF1976D2)),
+                                ),
+                              ),
+                            ),
+                            // زر إضافة الواجب
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _addAssignment,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1976D2),
+                                  foregroundColor: Colors.white,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 4,
+                                ),
+                                icon: const Icon(Icons.add),
+                                label: const Text(
+                                  'إضافة الواجب',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // قائمة الواجبات المضافة
+                    if (assignments.isNotEmpty) ...[
+                      Container(
+                        height: 200,
+                        margin: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xFF1976D2),
+                                    Color(0xFF64B5F6)
+                                  ],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  topRight: Radius.circular(16),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.list,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'الواجبات المضافة (${assignments.length})',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: ListView.builder(
+                                padding: const EdgeInsets.all(8),
+                                itemCount: assignments.length,
+                                itemBuilder: (context, index) {
+                                  final assignment = assignments[index];
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).cardColor,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                          color:
+                                              Theme.of(context).dividerColor),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'من صفحة ${assignment['pageFrom']} إلى ${assignment['pageTo']} - سؤال ${assignment['questionNumber']}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: Theme.of(context)
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.color ??
+                                                      const Color(0xFF233A5A),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                assignment['details'],
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.color,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete,
+                                              color: Color(0xFFE53935)),
+                                          onPressed: () =>
+                                              _removeAssignment(index),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    // زر إرسال الواجبات
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      child: ElevatedButton.icon(
+                        onPressed: _submitAssignments,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1976D2),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ],
+                          elevation: 4,
+                        ),
+                        icon: const Icon(Icons.send),
+                        label: const Text(
+                          'إرسال الواجبات',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    // رسالة عند عدم اختيار شعبة
+                    SizedBox(
+                      height: 200,
+                      child: Center(
+                        child: Text(
+                          'اختر الشعبة لتحديد الواجبات',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey.withOpacity(0.7),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
                   ],
-                  // زر إرسال الواجبات
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    child: ElevatedButton.icon(
-                      onPressed: _submitAssignments,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1976D2),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 4,
-                      ),
-                      icon: const Icon(Icons.send),
-                      label: const Text(
-                        'إرسال الواجبات',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  // رسالة عند عدم اختيار شعبة
-                  SizedBox(
-                    height: 200,
-                    child: Center(
-                      child: Text(
-                        'اختر الشعبة لتحديد الواجبات',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.withOpacity(0.7),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
-              ],
-            ),
-          ),
+              ),
+            ));
+          },
         ),
       ),
     );
@@ -657,6 +808,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
 
   @override
   void dispose() {
+    _profileBloc.close();
     _pageFromController.dispose();
     _pageToController.dispose();
     _questionNumberController.dispose();

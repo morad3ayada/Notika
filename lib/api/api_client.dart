@@ -28,7 +28,7 @@ class ApiClient {
       // Fetch token automatically if not provided
       final currentToken = token ?? await AuthService.getToken();
       if (currentToken != null && currentToken.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $currentToken';
+        headers['Authorization'] = currentToken;
       }
       // Log token before sending request to confirm it's not null
       debugPrint('ApiClient GET $endpoint - token: ${currentToken ?? 'NULL'}');
@@ -71,7 +71,7 @@ class ApiClient {
       // Fetch token automatically if not provided
       final currentToken = token ?? await AuthService.getToken();
       if (currentToken != null && currentToken.isNotEmpty) {
-        requestHeaders['Authorization'] = 'Bearer $currentToken';
+        requestHeaders['Authorization'] = currentToken;
       }
       if (headers != null) {
         requestHeaders.addAll(headers);

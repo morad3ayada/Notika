@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../bloc/profile/profile_bloc.dart';
-import '../../../bloc/profile/profile_event.dart';
-import '../../../bloc/profile/profile_state.dart';
+import '../../../logic/blocs/profile/profile_bloc.dart';
+import '../../../logic/blocs/profile/profile_event.dart';
+import '../../../logic/blocs/profile/profile_state.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';

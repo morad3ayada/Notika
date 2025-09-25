@@ -3,106 +3,50 @@ import 'package:provider/provider.dart';
 import '../../../providers/user_provider.dart';
 import '../../../data/services/auth_service.dart';
 import '../auth/sign_in.dart';
-
-class ClassInfo {
-  final String id;
-  final String name;
-  final bool isActive;
-  final Map<String, dynamic>? grades;
-  final Map<String, bool>? permissions;
-
-  ClassInfo({
-    required this.id,
-    required this.name,
-    this.isActive = true,
-    this.grades,
-    this.permissions,
-  });
-
-  ClassInfo copyWith({
-    bool? isActive,
-    Map<String, dynamic>? grades,
-    Map<String, bool>? permissions,
-  }) {
-    return ClassInfo(
-      id: id,
-      name: name,
-      isActive: isActive ?? this.isActive,
-      grades: grades ?? this.grades,
-      permissions: permissions ?? this.permissions,
-    );
-  }
-}
-
-class ProfileData {
-  final String userId;
-  final String userName;
-  final String userType;
-  final String fullName;
-  final String firstName;
-  final String secondName;
-  final String? thirdName;
-  final String? fourthName;
-  final String phone;
-  final String? organizationName;
-  final List<ClassInfo> classes;
-
-  ProfileData({
-    required this.userId,
-    required this.userName,
-    required this.userType,
-    required this.fullName,
-    required this.firstName,
-    required this.secondName,
-    this.thirdName,
-    this.fourthName,
-    required this.phone,
-    this.organizationName,
-    List<ClassInfo>? classes,
-  }) : classes = classes ?? [
-          ClassInfo(id: '1', name: 'الأول ابتدائي'),
-          ClassInfo(id: '2', name: 'الثاني ابتدائي'),
-          ClassInfo(id: '3', name: 'الثالث ابتدائي'),
-        ];
-
-  factory ProfileData.fromJson(Map<String, dynamic> json) {
-    return ProfileData(
-      userId: json['userId'] ?? '',
-      userName: json['userName'] ?? '',
-      userType: json['userType'] ?? '',
-      fullName: json['fullName']?.trim() ?? '',
-      firstName: json['firstName'] ?? '',
-      secondName: json['secondName'] ?? '',
-      thirdName: json['thirdName'],
-fourthName: json['fourthName'],
-      phone: json['phone'] ?? '',
-      organizationName: json['organization']?['name']?.toString() ?? json['organizationName']?.toString(),
-      classes: (json['classes'] as List<dynamic>?)?.map((c) => ClassInfo(
-            id: c['id']?.toString() ?? '',
-            name: c['name']?.toString() ?? '',
-            isActive: c['isActive'] ?? true,
-            grades: c['grades'] != null ? Map<String, dynamic>.from(c['grades']) : null,
-            permissions: c['permissions'] != null ? Map<String, bool>.from(c['permissions']) : null,
-          )).toList(),
-    );
-  }
-}
+import '../../../data/models/profile_models.dart';
+import '../../../data/services/profile_service.dart';
 
 class ProfileScreen extends StatefulWidget {
-  final ProfileData profile;
-  final List<Map<String, dynamic>> classes = [
-    {"name": "الأول ابتدائي", "icon": Icons.looks_one, "color": Color(0xFF1976D2)},
-    {"name": "الثاني ابتدائي", "icon": Icons.looks_two, "color": Color(0xFF43A047)},
-    {"name": "الثالث ابتدائي", "icon": Icons.looks_3, "color": Color(0xFFFFC107)},
-  ];
-  
-   ProfileScreen({Key? key, required this.profile}) : super(key: key);
+  // Accept legacy parameter to keep backward compatibility; it's unused now
+  final Object? profile;
+  const ProfileScreen({Key? key, this.profile}) : super(key: key);
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  ProfileResult? _profileResult;
+  bool _loading = true;
+  String? _error;
+  // Expanded palette to minimize repetition
+  final List<Color> _palette = const [
+    Color(0xFF1976D2), // Blue
+    Color(0xFF43A047), // Green
+    Color(0xFFFFC107), // Amber
+    Color(0xFFE53935), // Red
+    Color(0xFF8E24AA), // Purple
+    Color(0xFF00ACC1), // Cyan
+    Color(0xFFFB8C00), // Orange
+    Color(0xFF7CB342), // Light Green
+    Color(0xFF3949AB), // Indigo
+    Color(0xFFF06292), // Pink
+    Color(0xFF00897B), // Teal
+    Color(0xFFA1887F), // Brown
+    Color(0xFF5E35B1), // Deep Purple
+    Color(0xFF039BE5), // Light Blue
+    Color(0xFF6D4C41), // Brown Dark
+    Color(0xFFAFB42B), // Lime
+  ];
+
+  Color _colorFor(int idx, int total) {
+    // If we have enough unique colors for the visible items, assign one-to-one without repetition
+    if (total <= _palette.length) {
+      return _palette[idx];
+    }
+    // Otherwise, fallback to cycling (unavoidable repetition beyond palette size)
+    return _palette[idx % _palette.length];
+  }
   
   final List<String> _gradeComponents = [
     'كويز 1',
@@ -375,6 +319,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    // Fetch profile data on open using stored token
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final token = context.read<UserProvider>().token;
+        if (token == null || token.isEmpty) {
+          setState(() {
+            _loading = false;
+            _error = 'لم يتم العثور على رمز الدخول';
+          });
+          return;
+        }
+        final result = await ProfileService().getProfile(token);
+        setState(() {
+          _profileResult = result;
+          _loading = false;
+        });
+      } catch (e) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    });
   }
 
   Widget _buildInfoRow(String label, String value, {bool isTotal = false}) {
@@ -451,6 +418,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  if (_loading) const Center(child: CircularProgressIndicator()),
+                  if (_error != null && !_loading)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                    ),
                   // صورة رمزية أكبر مع ظل وحد ملون
                   Container(
                     decoration: BoxDecoration(
@@ -473,7 +446,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 62,
                       backgroundColor: Colors.transparent,
                       child: Text(
-widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : '?',
+                        (_profileResult?.profile.fullName.isNotEmpty == true)
+                            ? _profileResult!.profile.fullName.characters.first
+                            : '?',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -511,7 +486,7 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${widget.profile.fullName}',
+                                    '${_profileResult?.profile.fullName ?? ''}',
                                     style: TextStyle(
                                       color: Theme.of(context).brightness == Brightness.dark
                                           ? Colors.white
@@ -532,7 +507,7 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                                           const Icon(Icons.person_outline, color: Color(0xFF1976D2), size: 16),
                                           const SizedBox(width: 6),
                                           Text(
-                                            ' ${widget.profile.userName}',
+                                            ' ${_profileResult?.profile.userName ?? ''}',
                                             style: TextStyle(
                                               color: Theme.of(context).brightness == Brightness.dark
                                                   ? Colors.white
@@ -553,7 +528,7 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                                           const Icon(Icons.phone, color: Color(0xFF1976D2), size: 16),
                                           const SizedBox(width: 6),
                                           Text(
-                                            widget.profile.phone,
+                                            _profileResult?.profile.phone ?? '',
                                             style: TextStyle(
                                               color: Theme.of(context).brightness == Brightness.dark
                                                   ? Colors.white
@@ -573,7 +548,7 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                                       const Icon(Icons.badge, color: Color(0xFF43A047), size: 18),
                                       const SizedBox(width: 6),
                                       Text(
-                                        widget.profile.userType == 'Teacher' ? 'معلم' : widget.profile.userType,
+                                        (_profileResult?.profile.userType == 'Teacher') ? 'معلم' : (_profileResult?.profile.userType ?? ''),
                                         style: TextStyle(
                                           color: Theme.of(context).brightness == Brightness.dark
                                               ? Colors.white
@@ -592,7 +567,7 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                                       Flexible(
                                         child: Consumer<UserProvider>(
                                           builder: (context, userProvider, _) {
-                                            final orgName = userProvider.organization?.name ?? widget.profile.organizationName ?? 'مدرسة الانامل الواعدة';
+                                            final orgName = userProvider.organization?.name ?? 'مدرسة الانامل الواعدة';
                                             return Text(
                                               orgName,
                                               style: TextStyle(
@@ -647,26 +622,36 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                           textDirection: TextDirection.rtl,
                         ),
                         const SizedBox(height: 8),
-                        ...widget.classes.map((c) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              Icon(c["icon"] as IconData, color: c["color"] as Color, size: 26),
-                              const SizedBox(width: 10),
-                              Text(
-                                c["name"]!,
-                                style: TextStyle(
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? Colors.white
-                                      : c["color"] as Color,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                        ...?_profileResult?.classes.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final cls = entry.value;
+                          final total = _profileResult?.classes.length ?? 0;
+                          final color = _colorFor(idx, total);
+                          final display = '${cls.levelName ?? ''} ${cls.className ?? ''} ${cls.subjectName ?? ''}'.trim();
+                          final icon = idx == 0 ? Icons.looks_one : idx == 1 ? Icons.looks_two : Icons.looks_3;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Icon(icon, color: color, size: 26),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    display,
+                                    style: TextStyle(
+                                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : color,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                textDirection: TextDirection.rtl,
-                              ),
-                            ],
-                          ),
-                        )),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ],
                     ),
                   ),
@@ -700,80 +685,73 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                           textDirection: TextDirection.rtl,
                         ),
                         const SizedBox(height: 10),
-                        ...[
-                          {
-                            'name': 'الأول ابتدائي',
-                            'color': const Color(0xFF1976D2),
-                          },
-                          {
-                            'name': 'الثاني ابتدائي',
-                            'color': const Color(0xFF43A047),
-                          },
-                          {
-                            'name': 'الثالث ابتدائي',
-                            'color': const Color(0xFFFFC107),
-                          },
-                        ].map((c) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () => _showGradeDistributionSheet(
-                                      context, c['name'] as String, c['color'] as Color),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.assignment, color: c['color'] as Color, size: 26),
-                                        const SizedBox(width: 10),
-                                        Text(
-                                          'توزيع درجات ${c['name']}',
-                                          style: TextStyle(
-                                            color: c['color'] as Color,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            fontFamily: 'Tajawal',
+                        ...?_profileResult?.classes.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final cls = entry.value;
+                          final total = _profileResult?.classes.length ?? 0;
+                          final color = _colorFor(idx, total);
+                          final name = '${cls.subjectName ?? ''} ${cls.levelName ?? ''} ${cls.className ?? ''}'.trim();
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => _showGradeDistributionSheet(context, name, color),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.assignment, color: color, size: 26),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            'توزيع $name',
+                                            style: TextStyle(
+                                              color: color,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              fontFamily: 'Tajawal',
+                                            ),
+                                            textDirection: TextDirection.rtl,
                                           ),
-                                          textDirection: TextDirection.rtl,
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.info_outline, size: 22),
-                                color: c['color'] as Color,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return Directionality(
-                                        textDirection: TextDirection.rtl,
-                                        child: AlertDialog(
-                                          title: Text('توزيع درجات ${c['name']}'),
-                                          content: Text(
-                                            'هنا يمكنك إدارة درجات طلاب ${c['name']}. اضغط على اسم الصف لفتح نافذة إدارة التوزيع.',
-                                            textDirection: TextDirection.rtl,
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.of(context).pop(),
-                                              child: const Text('حسناً'),
+                                IconButton(
+                                  icon: const Icon(Icons.info_outline, size: 22),
+                                  color: color,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) {
+                                        return Directionality(
+                                          textDirection: TextDirection.rtl,
+                                          child: AlertDialog(
+                                            title: Text('توزيع $name'),
+                                            content: Text(
+                                              'هنا يمكنك إدارة درجات طلاب $name. اضغط على اسم الصف لفتح نافذة إدارة التوزيع.',
+                                              textDirection: TextDirection.rtl,
                                             ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        )).toList(),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(),
+                                                child: const Text('حسناً'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ],
                     ),
                   ),
@@ -823,47 +801,54 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                           textDirection: TextDirection.rtl,
                         ),
                         const SizedBox(height: 12),
-                        ...[
-                          {'name': 'الأول ابتدائي', 'color': Color(0xFF1976D2)},
-                          {'name': 'الثاني ابتدائي', 'color': Color(0xFF43A047)},
-                          {'name': 'الثالث ابتدائي', 'color': Color(0xFFFFC107)}
-                        ].map((c) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '${c['name']}',
-                                style: TextStyle(
-                                  color: c['color'] as Color,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'Tajawal',
-                                ),
-                                textDirection: TextDirection.rtl,
-                              ),
-                              Row(
-                                children: [
-                                  Text(
-                                    '${true ? 'مفعل' : 'معطل'}',
+                        ...?_profileResult?.classes.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final cls = entry.value;
+                          final total = _profileResult?.classes.length ?? 0;
+                          final color = _colorFor(idx, total);
+                          final name = '${cls.levelName ?? ''} ${cls.className ?? ''}'.trim();
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    name,
                                     style: TextStyle(
-                                      color: c['color'] as Color,
-                                      fontSize: 14,
+                                      color: color,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
                                       fontFamily: 'Tajawal',
                                     ),
+                                    textDirection: TextDirection.rtl,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(width: 8),
-                                  Switch(
-                                    value: true,
-                                    onChanged: (value) {},
-                                    activeColor: c['color'] as Color,
-                                    activeTrackColor: (c['color'] as Color).withOpacity(0.5),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        )).toList(),
+                                ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      '${true ? 'مفعل' : 'معطل'}',
+                                      style: TextStyle(
+                                        color: color,
+                                        fontSize: 14,
+                                        fontFamily: 'Tajawal',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Switch(
+                                      value: true,
+                                      onChanged: (value) {},
+                                      activeColor: color,
+                                      activeTrackColor: color.withOpacity(0.5),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ],
                     ),
                   ),
@@ -1097,23 +1082,56 @@ widget.profile.fullName.isNotEmpty ? widget.profile.fullName.characters.first : 
                                                             borderRadius: BorderRadius.circular(12),
                                                           ),
                                                         ),
-                                                        onPressed: () {
+                                                        onPressed: () async {
                                                           Navigator.of(ctx).pop(true);
-                                                          Navigator.of(context).pop();
-                                                          ScaffoldMessenger.of(context).showSnackBar(
-                                                            SnackBar(
-                                                              content: const Text(
-                                                                'تم تغيير كلمة المرور بنجاح',
-                                                                style: TextStyle(fontFamily: 'Tajawal'),
-                                                              ),
-                                                              backgroundColor: const Color(0xFF1976D2),
-                                                              behavior: SnackBarBehavior.floating,
-                                                              shape: RoundedRectangleBorder(
-                                                                borderRadius: BorderRadius.circular(10),
-                                                              ),
-                                                              margin: const EdgeInsets.all(16),
-                                                            ),
+                                                          // Show loading dialog
+                                                          showDialog(
+                                                            context: context,
+                                                            barrierDismissible: false,
+                                                            builder: (_) => const Center(child: CircularProgressIndicator()),
                                                           );
+                                                          try {
+                                                            await AuthService().changePassword(
+                                                              currentPassword: currentPasswordController.text.trim(),
+                                                              newPassword: newPasswordController.text.trim(),
+                                                            );
+                                                            if (mounted) {
+                                                              Navigator.of(context).pop(); // close loading
+                                                              Navigator.of(context).pop(); // close bottom sheet
+                                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                                SnackBar(
+                                                                  content: const Text(
+                                                                    'تم تغيير كلمة المرور بنجاح',
+                                                                    style: TextStyle(fontFamily: 'Tajawal'),
+                                                                  ),
+                                                                  backgroundColor: const Color(0xFF1976D2),
+                                                                  behavior: SnackBarBehavior.floating,
+                                                                  shape: RoundedRectangleBorder(
+                                                                    borderRadius: BorderRadius.circular(10),
+                                                                  ),
+                                                                  margin: const EdgeInsets.all(16),
+                                                                ),
+                                                              );
+                                                            }
+                                                          } catch (e) {
+                                                            if (mounted) {
+                                                              Navigator.of(context).pop(); // close loading
+                                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                                SnackBar(
+                                                                  content: Text(
+                                                                    e.toString().replaceAll('Exception: ', ''),
+                                                                    style: const TextStyle(fontFamily: 'Tajawal'),
+                                                                  ),
+                                                                  backgroundColor: Colors.red,
+                                                                  behavior: SnackBarBehavior.floating,
+                                                                  shape: RoundedRectangleBorder(
+                                                                    borderRadius: BorderRadius.circular(10),
+                                                                  ),
+                                                                  margin: const EdgeInsets.all(16),
+                                                                ),
+                                                              );
+                                                            }
+                                                          }
                                                         },
                                                         child: const Text(
                                                           'تأكيد',

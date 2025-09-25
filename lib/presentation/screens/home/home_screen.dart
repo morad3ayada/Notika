@@ -45,36 +45,12 @@ class _MainScreenState extends State<MainScreen> {
 
   // صفحات البار السفلي
   List<Widget> _buildPages(UserProvider userProvider) {
-    final userProfile = userProvider.userProfile;
-    final organization = userProvider.organization;
-    final profileData = userProfile != null ? ProfileData(
-      userId: userProfile.userId,
-      userName: userProfile.userName,
-      userType: userProfile.userType,
-      fullName: userProfile.fullName,
-      firstName: userProfile.firstName,
-      secondName: userProfile.secondName,
-      thirdName: userProfile.thirdName,
-      fourthName: userProfile.fourthName,
-      phone: userProfile.phone ?? '',
-      organizationName: organization?.name,
-    ) : ProfileData(
-      userId: '',
-      userName: '',
-      userType: '',
-      fullName: 'مستخدم',
-      firstName: '',
-      secondName: '',
-      phone: '',
-      organizationName: organization?.name,
-    );
-
     return <Widget>[
       HomeScreenContent(),
       ChatScreen(),
       ScheduleScreen(),
       AdminNotificationsScreen(),
-      ProfileScreen(profile: profileData),
+      const ProfileScreen(),
     ];
   }
 

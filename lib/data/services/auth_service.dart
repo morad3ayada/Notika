@@ -114,4 +114,23 @@ class AuthService {
     await clearAuthData();
     debugPrint('Local logout done');
   }
+
+  // Change password for the currently authenticated user
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final clientWithToken = ApiClient(baseUrl: ApiConfig.centralAuthBaseUrl);
+      await clientWithToken.post(
+        endpoint: ApiConfig.changePasswordEndpoint,
+        body: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+      );
+    } catch (e) {
+      throw Exception('تعذر تغيير كلمة المرور: ${e.toString().replaceAll('Exception: ', '')}');
+    }
+  }
 }

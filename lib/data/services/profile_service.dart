@@ -50,4 +50,29 @@ class ProfileService {
 
     return ProfileResult(profile: profile, classes: classes, organization: organization);
   }
+
+  // New: fetch profile with an explicit token and return the aggregated result
+  Future<ProfileResult> getProfile(String token) async {
+    final clientWithToken = ApiClient(baseUrl: ApiConfig.baseUrl, token: token);
+    final responseData = await clientWithToken.get(ApiConfig.profileEndpoint);
+    if (responseData is! Map<String, dynamic>) {
+      throw Exception('استجابة غير متوقعة');
+    }
+
+    final profileJson = (responseData['profile'] as Map<String, dynamic>?) ?? responseData;
+    final profile = TeacherProfile.fromJson(profileJson);
+
+    final classesJson = (responseData['classes'] as List?) ?? (profileJson['classes'] as List?) ?? const [];
+    final classes = classesJson
+        .whereType<Map<String, dynamic>>()
+        .map((e) => TeacherClass.fromJson(e))
+        .toList();
+
+    Organization? organization;
+    if (responseData['organization'] is Map<String, dynamic>) {
+      organization = Organization.fromJson(responseData['organization'] as Map<String, dynamic>);
+    }
+
+    return ProfileResult(profile: profile, classes: classes, organization: organization);
+  }
 }

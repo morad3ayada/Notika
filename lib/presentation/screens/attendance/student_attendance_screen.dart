@@ -6,6 +6,7 @@ import '../../../logic/blocs/profile/profile_state.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
+import '../../../data/services/attendance_service.dart';
 
 class StudentAttendanceScreen extends StatefulWidget {
   const StudentAttendanceScreen({super.key});
@@ -22,6 +23,12 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   String? selectedSubject;
   bool selectAll = false;
   late final ProfileBloc _profileBloc;
+  final AttendanceService _attendanceService = AttendanceService();
+
+  // Dynamic students state
+  List<Map<String, dynamic>> students = [];
+  bool studentsLoading = false;
+  String? studentsError;
 
   // سيتم اشتقاق القوائم التالية من بيانات الـ BLoC بدلاً من البيانات الثابتة
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -59,14 +66,59 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     return set.toList();
   }
 
-  // بيانات الطلاب (مثال ثابت)
-  final List<Map<String, dynamic>> students = [
-    {'name': 'أحمد محمد علي', 'id': '001', 'status': 'present'},
-    {'name': 'سارة أحمد حسن', 'id': '002', 'status': 'present'},
-    {'name': 'محمد عبد الله', 'id': '003', 'status': 'present'},
-    {'name': 'فاطمة محمود', 'id': '004', 'status': 'present'},
-    {'name': 'علي حسن محمد', 'id': '005', 'status': 'present'},
-  ];
+  Future<void> _fetchStudentsForSelection(List<TeacherClass> classes) async {
+    // Need levelId and classId from current selection
+    if (selectedSchool == null || selectedStage == null || selectedSection == null) return;
+    final match = classes.firstWhere(
+      (c) => c.schoolName == selectedSchool && c.levelName == selectedStage && c.className == selectedSection,
+      orElse: () => const TeacherClass(),
+    );
+    final levelId = match.levelId;
+    final classId = match.classId;
+    if (levelId == null || classId == null) {
+      setState(() {
+        students = [];
+        studentsError = 'تعذر تحديد المرحلة أو الشعبة.';
+      });
+      return;
+    }
+
+    setState(() {
+      studentsLoading = true;
+      studentsError = null;
+      students = [];
+      selectAll = false;
+    });
+    try {
+      final data = await _attendanceService.getClassStudents(levelId: levelId, classId: classId);
+      // Map API response to local UI structure: name, id, status
+      final mapped = data.map<Map<String, dynamic>>((e) {
+        final parts = [
+          (e['firstName'] ?? '').toString().trim(),
+          (e['secondName'] ?? '').toString().trim(),
+          (e['thirdName'] ?? '').toString().trim(),
+          (e['fourthName'] ?? '').toString().trim(),
+        ].where((p) => p.isNotEmpty).toList();
+        final fullName = parts.isEmpty ? (e['nickName']?.toString() ?? 'طالب') : parts.join(' ');
+        final id = (e['studentId'] ?? e['userId'] ?? '').toString();
+        return {
+          'name': fullName,
+          'id': id,
+          'status': 'present', // default
+        };
+      }).toList();
+
+      setState(() {
+        students = mapped;
+        studentsLoading = false;
+      });
+    } catch (err) {
+      setState(() {
+        studentsLoading = false;
+        studentsError = err.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
 
   void _onAttendanceChanged(String studentId, String status) {
     setState(() {
@@ -283,6 +335,8 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                           selectedStage = null;
                           selectedSection = null;
                           selectedSubject = null;
+                          students = [];
+                          studentsError = null;
                         });
                       },
                       label: 'المدرسة',
@@ -297,6 +351,8 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                             selectedStage = val;
                             selectedSection = null;
                             selectedSubject = null;
+                            students = [];
+                            studentsError = null;
                           });
                         },
                         label: 'المرحلة',
@@ -306,11 +362,15 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                       buildHorizontalSelector(
                         items: sections,
                         selected: selectedSection,
-                        onSelect: (val) {
+                        onSelect: (val) async {
                           setState(() {
                             selectedSection = val;
                             selectedSubject = null;
+                            students = [];
+                            studentsError = null;
                           });
+                          // Fetch students based on Level + Class (section)
+                          await _fetchStudentsForSelection(classes);
                         },
                         label: 'الشعبة',
                       ),
@@ -319,14 +379,14 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                       buildHorizontalSelector(
                         items: subjects,
                         selected: selectedSubject,
-                        onSelect: (val) {
+                        onSelect: (val) async {
                           setState(() {
                             selectedSubject = val;
                           });
                         },
                         label: 'المادة',
                       ),
-                    if (selectedSubject != null) ...[
+                    if (selectedSection != null) ...[
                   const SizedBox(height: 16),
                   // اختيار الكل
                   Row(
@@ -352,6 +412,32 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                       const Text('اختيار الكل كـ غياب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
+                  if (studentsLoading) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ] else if (studentsError != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24.0),
+                      child: Center(
+                        child: Text(
+                          studentsError!,
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ] else if (students.isEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24.0),
+                      child: Center(
+                        child: Text(
+                          'لا يوجد طلاب لهذه الشعبة',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
                   ...students.map((student) => Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -383,13 +469,6 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    'ID: ${student['id']}',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade500,
-                                      fontSize: 13,
-                                    ),
                                   ),
                                 ],
                               ),
@@ -442,6 +521,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                           ],
                         ),
                       )),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -465,12 +545,12 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                     ),
                   ),
                 ],
-                    if (selectedSubject == null)
+                    if (selectedSection == null)
                       SizedBox(
                         height: 200,
                         child: Center(
                           child: Text(
-                            'اختر المادة لعرض الطلاب',
+                            'اختر الشعبة لعرض الطلاب',
                             style: TextStyle(
                                 color: Colors.grey.shade600,
                                 fontSize: 18,

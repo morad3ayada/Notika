@@ -7,6 +7,8 @@ class ApiConfig {
   static const String loginEndpoint = '/api/auth/login';
   static const String logoutEndpoint = '/api/auth/logout';
   static const String changePasswordEndpoint = '/api/auth/change-password';
+  // Attendance / Students
+  static const String classStudentsEndpoint = '/api/school/ClassStudents';
   
   // Profile Endpoints
   static const String profileEndpoint = '/api/profile';

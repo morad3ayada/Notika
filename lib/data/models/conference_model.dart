@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 class ConferenceModel {
   final String id;
@@ -16,6 +17,7 @@ class ConferenceModel {
   final DateTime createdAt;
   final DateTime startAt;
   final int durationMinutes;
+  final bool isTemporary;
 
   const ConferenceModel({
     required this.id,
@@ -33,6 +35,7 @@ class ConferenceModel {
     required this.createdAt,
     required this.startAt,
     required this.durationMinutes,
+    this.isTemporary = false,
   });
 
   factory ConferenceModel.fromJson(Map<String, dynamic> json) {
@@ -82,11 +85,41 @@ class ConferenceModel {
         durationMinutes: json['durationMinutes'] is int 
             ? json['durationMinutes'] 
             : int.tryParse(json['durationMinutes']?.toString() ?? '0') ?? 0,
+        isTemporary: json['isTemporary'] == true,
       );
     } catch (e) {
       debugPrint('⚠️ Error parsing conference from JSON: $e');
       rethrow;
     }
+  }
+
+  /// Creates a temporary conference from request data when server doesn't return full object
+  factory ConferenceModel.fromRequestData(Map<String, dynamic> requestData) {
+    final now = DateTime.now();
+    final uuid = const Uuid();
+    
+    return ConferenceModel(
+      id: uuid.v4(), // Generate temporary UUID
+      teacherId: '', // Will be filled from current user context
+      teacherName: '', // Will be filled from current user context
+      levelSubjectId: requestData['levelSubjectId']?.toString() ?? '',
+      subjectId: requestData['levelSubjectId']?.toString() ?? '', // Fallback
+      subjectName: '', // Will be filled from context
+      levelId: requestData['levelId']?.toString() ?? '',
+      levelName: '', // Will be filled from context
+      classId: requestData['classId']?.toString() ?? '',
+      className: '', // Will be filled from context
+      title: requestData['title']?.toString() ?? '',
+      link: requestData['link']?.toString() ?? '',
+      createdAt: now,
+      startAt: requestData['startAt'] != null 
+          ? DateTime.parse(requestData['startAt'].toString())
+          : now,
+      durationMinutes: requestData['durationMinutes'] is int
+          ? requestData['durationMinutes']
+          : int.tryParse(requestData['durationMinutes']?.toString() ?? '0') ?? 60,
+      isTemporary: true, // Mark as temporary
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -106,6 +139,7 @@ class ConferenceModel {
       'createdAt': createdAt.toIso8601String(),
       'startAt': startAt.toIso8601String(),
       'durationMinutes': durationMinutes,
+      'isTemporary': isTemporary,
     };
   }
 

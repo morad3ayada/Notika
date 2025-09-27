@@ -184,6 +184,7 @@ class TeacherClass extends Equatable {
   final String? className;
   final String? subjectId;
   final String? subjectName;
+  final String? levelSubjectId;
 
   const TeacherClass({
     this.schoolId,
@@ -194,6 +195,7 @@ class TeacherClass extends Equatable {
     this.className,
     this.subjectId,
     this.subjectName,
+    this.levelSubjectId,
   });
 
   factory TeacherClass.fromJson(Map<String, dynamic> json) => TeacherClass(
@@ -205,6 +207,7 @@ class TeacherClass extends Equatable {
         className: json['className']?.toString(),
         subjectId: json['subjectId']?.toString(),
         subjectName: json['subjectName']?.toString(),
+        levelSubjectId: json['levelSubjectId']?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -216,6 +219,7 @@ class TeacherClass extends Equatable {
         'className': className,
         'subjectId': subjectId,
         'subjectName': subjectName,
+        'levelSubjectId': levelSubjectId,
       };
 
   @override
@@ -228,6 +232,7 @@ class TeacherClass extends Equatable {
         className,
         subjectId,
         subjectName,
+        levelSubjectId,
       ];
 }
 

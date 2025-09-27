@@ -5,6 +5,8 @@ import '../data/repositories/auth_repository.dart';
 import '../data/repositories/profile_repository.dart';
 import '../data/repositories/conferences_repository.dart';
 import '../data/repositories/assignment_repository.dart';
+import '../data/repositories/file_classification_repository.dart';
+import '../data/repositories/quick_tests_repository.dart';
 import '../api/api_client.dart';
 import '../config/api_config.dart';
 
@@ -23,4 +25,6 @@ void setupDependencies() {
   sl.registerLazySingleton<ProfileRepository>(() => ProfileRepository(sl()));
   sl.registerLazySingleton<ConferencesRepository>(() => ConferencesRepository(sl()));
   sl.registerLazySingleton<AssignmentRepository>(() => AssignmentRepository());
+  sl.registerLazySingleton<FileClassificationRepository>(() => FileClassificationRepository());
+  sl.registerLazySingleton<QuickTestsRepository>(() => QuickTestsRepository());
 }

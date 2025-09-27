@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:convert';
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
+import '../../../logic/blocs/quick_tests/quick_tests_bloc.dart';
+import '../../../logic/blocs/quick_tests/quick_tests_event.dart';
+import '../../../logic/blocs/quick_tests/quick_tests_state.dart';
 import '../../../data/models/profile_models.dart';
+import '../../../data/models/quick_tests_model.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
+import '../../../data/repositories/quick_tests_repository.dart';
 
 class QuickTestsScreen extends StatefulWidget {
   const QuickTestsScreen({super.key});
@@ -22,7 +28,12 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
   String? selectedSubject;
   int? examGrade;
   late final ProfileBloc _profileBloc;
+  late final QuickTestsBloc _quickTestsBloc;
   int? durationMinutes;
+  
+  // Controllers for new fields
+  final TextEditingController _titleController = TextEditingController();
+  DateTime? _selectedDeadline;
 
   final List<Map<String, dynamic>> questionTypes = [
     {
@@ -91,11 +102,14 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
   void initState() {
     super.initState();
     _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
+    _quickTestsBloc = QuickTestsBloc(sl<QuickTestsRepository>());
   }
 
   @override
   void dispose() {
     _profileBloc.close();
+    _quickTestsBloc.close();
+    _titleController.dispose();
     super.dispose();
   }
 
@@ -141,6 +155,22 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
   }
 
   void _submit() {
+    // Validate title
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى إدخال عنوان الاختبار')),
+      );
+      return;
+    }
+    
+    // Validate deadline
+    if (_selectedDeadline == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى تحديد موعد الاختبار')),
+      );
+      return;
+    }
+    
     if (selectedSchool == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('يرجى اختيار المدرسة')),
@@ -187,15 +217,38 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('تم إرسال اختبار قصير للفصل $selectedSchool بعدد $totalQuestions سؤال ومدة $durationMinutes دقيقة'),
-        backgroundColor: const Color(0xFF43A047),
-      ),
-    );
-    Future.delayed(const Duration(seconds: 1), () {
-      Navigator.of(context).pop();
-    });
+    
+    // Get profile state to access classes
+    final profileState = _profileBloc.state;
+    if (profileState is! ProfileLoaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('خطأ في تحميل بيانات الملف الشخصي')),
+      );
+      return;
+    }
+    
+    try {
+      // Create request using BLoC helper method
+      final request = QuickTestsBloc.createRequestFromFormData(
+        classes: profileState.classes,
+        selectedSchool: selectedSchool!,
+        selectedStage: selectedStage!,
+        selectedSection: selectedSection!,
+        selectedSubject: selectedSubject!,
+        title: _titleController.text.trim(),
+        deadline: _selectedDeadline!,
+        questionsByType: questionsByType,
+        durationMinutes: durationMinutes!,
+        maxGrade: examGrade!,
+      );
+      
+      // Submit via BLoC
+      _quickTestsBloc.add(AddQuickTestEvent(request));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطأ في إعداد البيانات: $e')),
+      );
+    }
   }
 
   Widget _buildQuestionInput(String type, int questionIndex) {
@@ -911,6 +964,115 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
                           ),
                         ),
                       const SizedBox(height: 24),
+                      
+                      // Title field
+                      Text(
+                        'عنوان الاختبار',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: TextFormField(
+                          controller: _titleController,
+                          decoration: InputDecoration(
+                            hintText: 'مثال: اختبار الوحدة الأولى',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFF1976D2), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).cardColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Deadline field
+                      Text(
+                        'موعد الاختبار',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ListTile(
+                          leading: Icon(Icons.calendar_today, color: Color(0xFF1976D2)),
+                          title: Text(
+                            _selectedDeadline != null
+                                ? '${_selectedDeadline!.day}/${_selectedDeadline!.month}/${_selectedDeadline!.year} - ${_selectedDeadline!.hour}:${_selectedDeadline!.minute.toString().padLeft(2, '0')}'
+                                : 'اختر موعد الاختبار',
+                            style: TextStyle(
+                              color: _selectedDeadline != null
+                                  ? Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A)
+                                  : Colors.grey,
+                            ),
+                          ),
+                          onTap: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now().add(Duration(days: 1)),
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(Duration(days: 365)),
+                            );
+                            if (date != null) {
+                              final time = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay.now(),
+                              );
+                              if (time != null) {
+                                setState(() {
+                                  _selectedDeadline = DateTime(
+                                    date.year,
+                                    date.month,
+                                    date.day,
+                                    time.hour,
+                                    time.minute,
+                                  );
+                                });
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
                       Text(
                         'مدة الاختبار (بالدقائق)',
                         style: TextStyle(
@@ -1093,29 +1255,82 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
                         );
                       }),
                       const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF1976D2),
-                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                      
+                      // Submit button with BLoC state handling
+                      BlocConsumer<QuickTestsBloc, QuickTestsState>(
+                        bloc: _quickTestsBloc,
+                        listener: (context, state) {
+                          if (state is QuickTestsSuccess) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(state.message),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            // Clear form and navigate back
+                            _titleController.clear();
+                            setState(() {
+                              _selectedDeadline = null;
+                              selectedSchool = null;
+                              selectedStage = null;
+                              selectedSection = null;
+                              selectedSubject = null;
+                              durationMinutes = null;
+                              examGrade = null;
+                              questionsByType = {
+                                "choice": [],
+                                "truefalse": [],
+                                "complete": [],
+                              };
+                            });
+                            Future.delayed(const Duration(seconds: 1), () {
+                              Navigator.of(context).pop();
+                            });
+                          } else if (state is QuickTestsFailure) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(state.message),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                        builder: (context, state) {
+                          final isLoading = state is QuickTestsLoading;
+                          return SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFF1976D2),
+                                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                                elevation: 4,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 20),
+                              ),
+                              icon: isLoading
+                                  ? SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : Icon(Icons.send, color: Theme.of(context).colorScheme.onPrimary, size: 24),
+                              label: Text(
+                                isLoading ? 'جاري الإرسال...' : 'إرسال الاختبار',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              onPressed: isLoading ? null : _submit,
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 20),
-                          ),
-                          icon: Icon(Icons.send, color: Theme.of(context).colorScheme.onPrimary, size: 24),
-                          label: Text(
-                            'إرسال الاختبار',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                          onPressed: _submit,
-                        ),
+                          );
+                        },
                       ),
                     ],
                   ),

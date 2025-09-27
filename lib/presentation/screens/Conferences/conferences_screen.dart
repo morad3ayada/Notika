@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
+import '../../../logic/blocs/conferences/conferences_bloc.dart';
+import '../../../logic/blocs/conferences/conferences_event.dart';
+import '../../../logic/blocs/conferences/conferences_state.dart';
+import '../../../data/models/conference_model.dart';
+import '../../../data/repositories/conferences_repository.dart';
 
 class ConferencesScreen extends StatefulWidget {
   const ConferencesScreen({super.key});
@@ -20,6 +27,7 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
   String? selectedSection;
   String? selectedSubject;
   late final ProfileBloc _profileBloc;
+  late final ConferencesBloc _conferencesBloc;
 
   // Helpers to derive dynamic lists from TeacherClass
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -57,42 +65,175 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
     return set.toList();
   }
 
-  // Sample data for conferences
-  final List<Map<String, dynamic>> upcomingConferences = [
-    {
-      'title': 'اللغة العربية - الصف الأول',
-      'date': '2023-10-15',
-      'time': '14:30',
-      'duration': '60 دقيقة',
-      'meetingLink': 'https://meet.google.com/abc-xyz-123',
-    },
-    {
-      'title': 'التربية الإسلامية - الصف الثاني',
-      'date': '2023-10-16',
-      'time': '15:30',
-      'duration': '45 دقيقة',
-      'meetingLink': 'https://meet.google.com/def-uvw-456',
-    },
-  ];
+  // Helper method to convert ConferenceModel to Map for existing UI components
+  Map<String, dynamic> _conferenceToMap(ConferenceModel conference, {bool isUpcoming = true}) {
+    final startDate = conference.startAt;
+    final duration = '${conference.durationMinutes} دقيقة';
+    
+    return {
+      'title': conference.title.isNotEmpty ? conference.title : '${conference.subjectName} - ${conference.className}',
+      'date': '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
+      'time': '${startDate.hour.toString().padLeft(2, '0')}:${startDate.minute.toString().padLeft(2, '0')}',
+      'duration': duration,
+      'meetingLink': conference.link,
+      if (!isUpcoming) 'attended': true, // For past conferences, assume attended
+    };
+  }
 
-  final List<Map<String, dynamic>> pastConferences = [
-    {
-      'title': 'الرياضيات - الصف الثالث',
-      'date': '2023-10-10',
-      'time': '10:00',
-      'duration': '60 دقيقة',
-      'attended': true,
-      'meetingLink': 'https://meet.google.com/ghi-rst-789',
-    },
-    {
-      'title': 'العلوم - الصف الرابع',
-      'date': '2023-10-05',
-      'time': '11:30',
-      'duration': '45 دقيقة',
-      'attended': false,
-      'meetingLink': 'https://meet.google.com/jkl-mno-012',
-    },
-  ];
+  // Helper method to launch meeting URL
+  Future<void> _launchMeetingUrl(String? url) async {
+    if (url == null || url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('رابط الجلسة غير متوفر'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Clean and validate URL
+      String cleanUrl = url.trim();
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = 'https://$cleanUrl';
+      }
+      
+      final Uri uri = Uri.parse(cleanUrl);
+      debugPrint('🔗 Attempting to launch URL: $cleanUrl');
+      
+      // Try different launch modes in order of preference
+      bool launched = false;
+      
+      // First try: Launch in external application (preferred for meeting apps)
+      try {
+        launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        debugPrint('✅ Launched in external application');
+      } catch (e) {
+        debugPrint('⚠️ External application launch failed: $e');
+      }
+      
+      // Second try: Launch in external browser if external app failed
+      if (!launched) {
+        try {
+          launched = await launchUrl(
+            uri,
+            mode: LaunchMode.externalNonBrowserApplication,
+          );
+          debugPrint('✅ Launched in external non-browser application');
+        } catch (e) {
+          debugPrint('⚠️ External non-browser launch failed: $e');
+        }
+      }
+      
+      // Third try: Launch in browser
+      if (!launched) {
+        try {
+          launched = await launchUrl(
+            uri,
+            mode: LaunchMode.platformDefault,
+          );
+          debugPrint('✅ Launched with platform default');
+        } catch (e) {
+          debugPrint('⚠️ Platform default launch failed: $e');
+        }
+      }
+      
+      // If all methods failed, show options to user
+      if (!launched) {
+        _showLaunchOptionsDialog(cleanUrl);
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Error launching URL: $e');
+      _showLaunchOptionsDialog(url);
+    }
+  }
+
+  // Show dialog with options when URL launch fails
+  void _showLaunchOptionsDialog(String url) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('فتح رابط الجلسة'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('لا يمكن فتح الرابط تلقائياً. يرجى اختيار أحد الخيارات التالية:'),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    url,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _copyToClipboard(url);
+                },
+                child: const Text('نسخ الرابط'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  try {
+                    // Force launch in browser
+                    await launchUrl(
+                      Uri.parse(url),
+                      mode: LaunchMode.inAppBrowserView,
+                    );
+                  } catch (e) {
+                    _copyToClipboard(url);
+                  }
+                },
+                child: const Text('فتح في المتصفح'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('إلغاء'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper method to copy text to clipboard
+  Future<void> _copyToClipboard(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم نسخ الرابط إلى الحافظة'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error copying to clipboard: $e');
+    }
+  }
 
   // Form controllers
   final _formKey = GlobalKey<FormState>();
@@ -230,14 +371,14 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
               _buildDetailRow(Icons.timer_outlined, 'المدة', conference['duration']),
               if (isUpcoming) ...[
                 const SizedBox(height: 12),
-                _buildDetailRow(Icons.link, 'رابط الاجتماع', conference['meetingLink'] ?? 'لم يتم إضافة رابط'),
+                _buildLinkDetailRow(Icons.link, 'رابط الاجتماع', conference['meetingLink'] ?? 'لم يتم إضافة رابط'),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Implement join meeting
+                    onPressed: () async {
                       Navigator.pop(context);
+                      await _launchMeetingUrl(conference['meetingLink']);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1976D2),
@@ -248,7 +389,7 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                     ),
                     child: const Text(
                       'انضم إلى الجلسة',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ),
                 ),
@@ -311,10 +452,86 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
     );
   }
 
+  Widget _buildLinkDetailRow(IconData icon, String label, String value) {
+    final bool hasValidLink = value.isNotEmpty && value != 'لم يتم إضافة رابط';
+    
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: Colors.grey, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$label: ',
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (hasValidLink)
+                GestureDetector(
+                  onTap: () => _launchMeetingUrl(value),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1976D2).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.launch,
+                          size: 16,
+                          color: Color(0xFF1976D2),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'اضغط للانضمام',
+                            style: const TextStyle(
+                              color: Color(0xFF1976D2),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (hasValidLink)
+          IconButton(
+            onPressed: () => _copyToClipboard(value),
+            icon: const Icon(Icons.copy, size: 18, color: Colors.grey),
+            tooltip: 'نسخ الرابط',
+          ),
+      ],
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
+    _conferencesBloc = ConferencesBloc(sl<ConferencesRepository>())..add(const LoadConferences());
   }
 
   @override
@@ -325,6 +542,7 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
     _durationController.dispose();
     _meetingLinkController.dispose();
     _profileBloc.close();
+    _conferencesBloc.close();
     super.dispose();
   }
 
@@ -783,8 +1001,8 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                 const Spacer(),
                 if (isUpcoming)
                   ElevatedButton(
-                    onPressed: () {
-                      // TODO: Join conference
+                    onPressed: () async {
+                      await _launchMeetingUrl(conference['meetingLink']);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
@@ -927,84 +1145,229 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                 ),
               ),
               
-              // Upcoming Conferences Section with Horizontal Scroll
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
+              // Conferences Content with BLoC
+              BlocBuilder<ConferencesBloc, ConferencesState>(
+                bloc: _conferencesBloc,
+                builder: (context, state) {
+                  if (state is ConferencesLoading) {
+                    return const Padding(
+                      padding: EdgeInsets.all(50.0),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1976D2)),
+                        ),
+                      ),
+                    );
+                  }
+                  
+                  if (state is ConferencesError) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'خطأ في تحميل الجلسات',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            state.message,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              _conferencesBloc.add(const RefreshConferences());
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1976D2),
+                            ),
+                            child: const Text(
+                              'إعادة المحاولة',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  
+                  if (state is ConferencesLoaded) {
+                    final upcomingConferences = state.upcomingConferences.map((c) => _conferenceToMap(c, isUpcoming: true)).toList();
+                    final pastConferences = state.pastConferences.map((c) => _conferenceToMap(c, isUpcoming: false)).toList();
+                    
+                    return Column(
                       children: [
-                        Icon(Icons.upcoming, color: Color(0xFF1976D2)),
-                        SizedBox(width: 8),
-                        Text(
-                          'الجلسات القادمة',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF333333),
+                        // Upcoming Conferences Section with Horizontal Scroll
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.upcoming, color: Color(0xFF1976D2)),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'الجلسات القادمة',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF333333),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    onPressed: () {
+                                      _conferencesBloc.add(const RefreshConferences());
+                                    },
+                                    icon: const Icon(Icons.refresh, color: Color(0xFF1976D2)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (upcomingConferences.isEmpty)
+                                Container(
+                                  height: 120,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey[300]!),
+                                  ),
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.event_busy, size: 48, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'لا توجد جلسات قادمة',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                SizedBox(
+                                  height: 220,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: upcomingConferences.length,
+                                    itemBuilder: (context, index) {
+                                      return SizedBox(
+                                        width: MediaQuery.of(context).size.width * 0.85,
+                                        child: _buildConferenceCard(upcomingConferences[index]),
+                                      );
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        
+                        // Past Conferences Section
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.history, color: Colors.grey),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'الجلسات السابقة',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (pastConferences.isEmpty)
+                                Container(
+                                  height: 120,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey[200]!),
+                                  ),
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.history_toggle_off, size: 48, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'لا توجد جلسات سابقة',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Container(
+                                  constraints: BoxConstraints(
+                                    minHeight: MediaQuery.of(context).size.height * 0.3,
+                                    maxHeight: MediaQuery.of(context).size.height * 0.5,
+                                  ),
+                                  child: ListView.builder(
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    shrinkWrap: true,
+                                    itemCount: pastConferences.length,
+                                    itemBuilder: (context, index) {
+                                      return _buildConferenceCard(
+                                        pastConferences[index],
+                                        isUpcoming: false,
+                                      );
+                                    },
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 220,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: upcomingConferences.length,
-                        itemBuilder: (context, index) {
-                          return SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.85,
-                            child: _buildConferenceCard(upcomingConferences[index]),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Past Conferences Section
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.history, color: Colors.grey),
-                        SizedBox(width: 8),
-                        Text(
-                          'الجلسات السابقة',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                          ),
+                    );
+                  }
+                  
+                  // Initial state
+                  return const Padding(
+                    padding: EdgeInsets.all(50.0),
+                    child: Center(
+                      child: Text(
+                        'جاري تحميل الجلسات...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      constraints: BoxConstraints(
-                        minHeight: MediaQuery.of(context).size.height * 0.3,
-                        maxHeight: MediaQuery.of(context).size.height * 0.5,
-                      ),
-                      child: ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        shrinkWrap: true,
-                        itemCount: pastConferences.length,
-                        itemBuilder: (context, index) {
-                          return _buildConferenceCard(
-                            pastConferences[index],
-                            isUpcoming: false,
-                          );
-                        },
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ),

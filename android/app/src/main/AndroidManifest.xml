@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     
+    <!-- أذونات للإنترنت وفتح الروابط -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    
     <application
         android:label="Notika Teacher"
         android:name="${applicationName}"
@@ -46,5 +50,20 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- للسماح بفتح الروابط في المتصفحات والتطبيقات -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <!-- تطبيقات الاجتماعات الشائعة -->
+        <package android:name="us.zoom.videomeetings" />
+        <package android:name="com.google.android.apps.meetings" />
+        <package android:name="com.microsoft.teams" />
+        <package android:name="com.skype.raider" />
+        <package android:name="com.webex.meetings" />
     </queries>
 </manifest>

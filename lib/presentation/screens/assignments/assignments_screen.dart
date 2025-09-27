@@ -3,7 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
+import '../../../logic/blocs/assignments/assignment_barrel.dart';
 import '../../../data/models/profile_models.dart';
+import '../../../data/models/assignment_model.dart';
+import '../../../data/repositories/assignment_repository.dart';
+import '../../../utils/teacher_class_matcher.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../home/home_screen.dart';
@@ -16,12 +20,12 @@ class AssignmentsScreen extends StatefulWidget {
 }
 
 class _AssignmentsScreenState extends State<AssignmentsScreen> {
-  final _formKey = GlobalKey<FormState>();
   String? selectedSchool;
   String? selectedStage;
   String? selectedSection;
   String? selectedSubject;
   late final ProfileBloc _profileBloc;
+  late final AssignmentBloc _assignmentBloc;
 
   // القوائم سيتم بناؤها من بيانات الـ BLoC
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -66,84 +70,126 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     return set.toList();
   }
 
-  // قائمة الواجبات
-  List<Map<String, dynamic>> assignments = [];
-
   // حقول الواجب الجديد
-  final TextEditingController _pageFromController = TextEditingController();
-  final TextEditingController _pageToController = TextEditingController();
-  final TextEditingController _questionNumberController =
-      TextEditingController();
-  final TextEditingController _detailsController = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
+  final TextEditingController _contentTypeController = TextEditingController();
+  final TextEditingController _maxGradeController = TextEditingController();
+  DateTime? _selectedDeadline;
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
     _profileBloc = ProfileBloc(sl<ProfileRepository>())
       ..add(const FetchProfile());
+    _assignmentBloc = AssignmentBloc(sl<AssignmentRepository>());
   }
 
-  void _addAssignment() {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        assignments.add({
-          'pageFrom': _pageFromController.text,
-          'pageTo': _pageToController.text,
-          'questionNumber': _questionNumberController.text,
-          'details': _detailsController.text,
-          'class': selectedSection,
+  Future<void> _selectDeadline() async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (pickedDate != null) {
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _selectedDeadline = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
         });
+      }
+    }
+  }
 
-        // مسح الحقول
-        _pageFromController.clear();
-        _pageToController.clear();
-        _questionNumberController.clear();
-        _detailsController.clear();
-      });
+  void _submitAssignment() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
+    if (selectedSchool == null || selectedStage == null || selectedSection == null || selectedSubject == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('تم إضافة الواجب بنجاح'),
-          backgroundColor: Color(0xFF1976D2),
+          content: Text('يرجى اختيار جميع الحقول المطلوبة'),
+          backgroundColor: Colors.red,
         ),
       );
+      return;
     }
-  }
 
-  void _removeAssignment(int index) {
-    setState(() {
-      assignments.removeAt(index);
-    });
-  }
-
-  void _submitAssignments() {
-    if (selectedSection == null) {
+    if (_selectedDeadline == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى اختيار الشعبة')),
+        const SnackBar(
+          content: Text('يرجى اختيار موعد التسليم'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
-    if (assignments.isEmpty) {
+    // Find matching TeacherClass to get GUIDs
+    final profileState = _profileBloc.state;
+    if (profileState is! ProfileLoaded) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى إضافة واجبات')),
+        const SnackBar(
+          content: Text('خطأ في تحميل بيانات المعلم'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-            Text('تم إرسال ${assignments.length} واجب للشعبة $selectedSection'),
-        backgroundColor: const Color(0xFF1976D2),
-        duration: const Duration(seconds: 2),
-      ),
+    final matchingClass = TeacherClassMatcher.findMatchingTeacherClass(
+      profileState.classes,
+      selectedSchool,
+      selectedStage,
+      selectedSection,
+      selectedSubject,
     );
-    Future.delayed(const Duration(seconds: 1), () {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => MainScreen()),
-        (route) => false,
+
+    if (matchingClass == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لم يتم العثور على الفصل المطابق'),
+          backgroundColor: Colors.red,
+        ),
       );
+      return;
+    }
+
+    final request = CreateAssignmentRequest(
+      levelSubjectId: matchingClass.levelSubjectId ?? '',
+      levelId: matchingClass.levelId ?? '',
+      classId: matchingClass.classId ?? '',
+      title: _titleController.text.trim(),
+      deadline: _selectedDeadline!.toIso8601String(),
+      maxGrade: int.tryParse(_maxGradeController.text) ?? 0,
+      contentType: _contentTypeController.text.trim().isEmpty ? 'text' : _contentTypeController.text.trim(),
+      content: _contentController.text.trim(),
+    );
+
+    _assignmentBloc.add(CreateAssignment(request));
+  }
+
+  void _clearForm() {
+    _titleController.clear();
+    _contentController.clear();
+    _contentTypeController.clear();
+    _maxGradeController.clear();
+    setState(() {
+      _selectedDeadline = null;
     });
   }
 
@@ -278,9 +324,34 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
             ),
           ),
         ),
-        body: BlocBuilder<ProfileBloc, ProfileState>(
-          bloc: _profileBloc,
-          builder: (context, state) {
+        body: BlocConsumer<AssignmentBloc, AssignmentState>(
+          bloc: _assignmentBloc,
+          listener: (context, assignmentState) {
+            if (assignmentState is AssignmentCreated) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('تم إنشاء الواجب بنجاح'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              _clearForm();
+              // Navigate back after success
+              Future.delayed(const Duration(seconds: 1), () {
+                Navigator.of(context).pop();
+              });
+            } else if (assignmentState is AssignmentCreateError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('خطأ: ${assignmentState.message}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          builder: (context, assignmentState) {
+            return BlocBuilder<ProfileBloc, ProfileState>(
+              bloc: _profileBloc,
+              builder: (context, state) {
             if (state is ProfileLoading || state is ProfileInitial) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -399,7 +470,7 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                           ),
                           const SizedBox(width: 12),
                           const Text(
-                            'إضافة واجب جديد',
+                            'إنشاء واجب جديد',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -417,146 +488,46 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                         key: _formKey,
                         child: Column(
                           children: [
-                            // رقم الصفحة
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _pageFromController,
-                                    keyboardType: TextInputType.number,
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.color,
-                                    ),
-                                    decoration: InputDecoration(
-                                      labelText: 'من صفحة',
-                                      labelStyle: TextStyle(
-                                          color: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.color ??
-                                              const Color(0xFF233A5A)),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(
-                                            color: Color(0xFFE0E0E0)),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(
-                                            color: Color(0xFFE0E0E0)),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(
-                                            color: Color(0xFF1976D2), width: 2),
-                                      ),
-                                      filled: true,
-                                      fillColor: Theme.of(context).cardColor,
-                                      prefixIcon: const Icon(Icons.arrow_back,
-                                          color: Color(0xFF1976D2)),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'أدخل رقم الصفحة من';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _pageToController,
-                                    keyboardType: TextInputType.number,
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.color,
-                                    ),
-                                    decoration: InputDecoration(
-                                      labelText: 'إلى صفحة',
-                                      labelStyle: TextStyle(
-                                          color: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.color ??
-                                              const Color(0xFF233A5A)),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(
-                                            color: Color(0xFFE0E0E0)),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(
-                                            color: Color(0xFFE0E0E0)),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(
-                                            color: Color(0xFF1976D2), width: 2),
-                                      ),
-                                      filled: true,
-                                      fillColor: Theme.of(context).cardColor,
-                                      prefixIcon: const Icon(
-                                          Icons.arrow_forward,
-                                          color: Color(0xFF1976D2)),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'أدخل رقم الصفحة إلى';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
                             // عنوان الواجب
                             Container(
                               margin: const EdgeInsets.only(bottom: 16),
                               child: TextFormField(
-                                controller: _questionNumberController,
+                                controller: _titleController,
                                 keyboardType: TextInputType.text,
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.color,
-                                ),
-                                decoration: InputDecoration(
-                                  labelText: 'عنوان الواجب',
-                                  labelStyle: TextStyle(
+                                    style: TextStyle(
                                       color: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.color ??
-                                          const Color(0xFF233A5A)),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFFE0E0E0)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFFE0E0E0)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFF1976D2), width: 2),
-                                  ),
-                                  filled: true,
-                                  fillColor: Theme.of(context).cardColor,
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color,
+                                    ),
+                                decoration: InputDecoration(
+                                  labelText: 'عنوان الواجب *',
+                                      labelStyle: TextStyle(
+                                          color: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.color ??
+                                              const Color(0xFF233A5A)),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFE0E0E0)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFFE0E0E0)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                            color: Color(0xFF1976D2), width: 2),
+                                      ),
+                                      filled: true,
+                                      fillColor: Theme.of(context).cardColor,
                                   prefixIcon: const Icon(Icons.title,
                                       color: Color(0xFF1976D2)),
-                                ),
+                                    ),
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'أدخل عنوان الواجب';
@@ -565,12 +536,13 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                                 },
                               ),
                             ),
-                            // التفاصيل
+                            const SizedBox(height: 16),
+                            // نوع المحتوى
                             Container(
-                              margin: const EdgeInsets.only(bottom: 20),
+                              margin: const EdgeInsets.only(bottom: 16),
                               child: TextFormField(
-                                controller: _detailsController,
-                                maxLines: 3,
+                                controller: _contentTypeController,
+                                keyboardType: TextInputType.text,
                                 style: TextStyle(
                                   color: Theme.of(context)
                                       .textTheme
@@ -578,7 +550,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                                       ?.color,
                                 ),
                                 decoration: InputDecoration(
-                                  labelText: 'تفاصيل إضافية',
+                                  labelText: 'نوع المحتوى (اختياري)',
+                                  hintText: 'مثال: نص، صورة، فيديو',
                                   labelStyle: TextStyle(
                                       color: Theme.of(context)
                                               .textTheme
@@ -602,16 +575,149 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                                   ),
                                   filled: true,
                                   fillColor: Theme.of(context).cardColor,
-                                  prefixIcon: const Icon(Icons.info_outline,
+                                  prefixIcon: const Icon(Icons.category,
                                       color: Color(0xFF1976D2)),
                                 ),
                               ),
                             ),
-                            // زر إضافة الواجب
+                            // الدرجة القصوى
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              child: TextFormField(
+                                controller: _maxGradeController,
+                                keyboardType: TextInputType.number,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'الدرجة القصوى *',
+                                  labelStyle: TextStyle(
+                                      color: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.color ??
+                                          const Color(0xFF233A5A)),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF1976D2), width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: Theme.of(context).cardColor,
+                                  prefixIcon: const Icon(Icons.grade,
+                                      color: Color(0xFF1976D2)),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'أدخل الدرجة القصوى';
+                                  }
+                                  if (int.tryParse(value) == null) {
+                                    return 'أدخل رقم صحيح';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            // موعد التسليم
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              child: InkWell(
+                                onTap: _selectDeadline,
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: const Color(0xFFE0E0E0)),
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: Theme.of(context).cardColor,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.schedule, color: Color(0xFF1976D2)),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          _selectedDeadline == null
+                                              ? 'اختر موعد التسليم *'
+                                              : 'موعد التسليم: ${_selectedDeadline!.day}/${_selectedDeadline!.month}/${_selectedDeadline!.year} - ${_selectedDeadline!.hour}:${_selectedDeadline!.minute.toString().padLeft(2, '0')}',
+                                          style: TextStyle(
+                                            color: _selectedDeadline == null
+                                                ? Colors.grey
+                                                : Theme.of(context).textTheme.bodyMedium?.color,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // محتوى الواجب
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 20),
+                              child: TextFormField(
+                                controller: _contentController,
+                                maxLines: 4,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'محتوى الواجب *',
+                                  labelStyle: TextStyle(
+                                      color: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.color ??
+                                          const Color(0xFF233A5A)),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE0E0E0)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF1976D2), width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: Theme.of(context).cardColor,
+                                  prefixIcon: const Icon(Icons.description,
+                                      color: Color(0xFF1976D2)),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'أدخل محتوى الواجب';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            // زر إرسال الواجب
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: _addAssignment,
+                                onPressed: assignmentState is AssignmentCreating ? null : _submitAssignment,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF1976D2),
                                   foregroundColor: Colors.white,
@@ -622,9 +728,18 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                                   ),
                                   elevation: 4,
                                 ),
-                                icon: const Icon(Icons.add),
-                                label: const Text(
-                                  'إضافة الواجب',
+                                icon: assignmentState is AssignmentCreating 
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Icon(Icons.send),
+                                label: Text(
+                                  assignmentState is AssignmentCreating ? 'جاري الإرسال...' : 'إرسال الواجب',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -636,163 +751,19 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                         ),
                       ),
                     ),
-                    // قائمة الواجبات المضافة
-                    if (assignments.isNotEmpty) ...[
-                      Container(
-                        height: 200,
-                        margin: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Color(0xFF1976D2),
-                                    Color(0xFF64B5F6)
-                                  ],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                ),
-                                borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(16),
-                                  topRight: Radius.circular(16),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.list,
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'الواجبات المضافة (${assignments.length})',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: ListView.builder(
-                                padding: const EdgeInsets.all(8),
-                                itemCount: assignments.length,
-                                itemBuilder: (context, index) {
-                                  final assignment = assignments[index];
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).cardColor,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                          color:
-                                              Theme.of(context).dividerColor),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'من صفحة ${assignment['pageFrom']} إلى ${assignment['pageTo']} - سؤال ${assignment['questionNumber']}',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                  color: Theme.of(context)
-                                                          .textTheme
-                                                          .titleMedium
-                                                          ?.color ??
-                                                      const Color(0xFF233A5A),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                assignment['details'],
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium
-                                                      ?.color,
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete,
-                                              color: Color(0xFFE53935)),
-                                          onPressed: () =>
-                                              _removeAssignment(index),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    // زر إرسال الواجبات
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      child: ElevatedButton.icon(
-                        onPressed: _submitAssignments,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1976D2),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 4,
-                        ),
-                        icon: const Icon(Icons.send),
-                        label: const Text(
-                          'إرسال الواجبات',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
                   ] else ...[
-                    // رسالة عند عدم اختيار شعبة
+                    // رسالة عند عدم اختيار المادة
                     SizedBox(
                       height: 200,
                       child: Center(
                         child: Text(
-                          'اختر الشعبة لتحديد الواجبات',
+                          'اختر المدرسة والمرحلة والشعبة والمادة لإنشاء واجب',
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey.withOpacity(0.7),
                             fontWeight: FontWeight.w500,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),
@@ -800,6 +771,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                 ],
               ),
             ));
+              },
+            );
           },
         ),
       ),
@@ -809,10 +782,11 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   @override
   void dispose() {
     _profileBloc.close();
-    _pageFromController.dispose();
-    _pageToController.dispose();
-    _questionNumberController.dispose();
-    _detailsController.dispose();
+    _assignmentBloc.close();
+    _titleController.dispose();
+    _contentController.dispose();
+    _contentTypeController.dispose();
+    _maxGradeController.dispose();
     super.dispose();
   }
 }

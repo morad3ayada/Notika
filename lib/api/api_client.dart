@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
 import '../utils/network_utils.dart';
 import '../data/services/auth_service.dart';
+// HTTP logging utilities
 
 class ApiClient {
   final String baseUrl;
@@ -13,7 +14,7 @@ class ApiClient {
 
   ApiClient({required this.baseUrl, this.token});
 
-  Future<dynamic> get(String endpoint, {Map<String, String>? queryParams, String? customBaseUrl}) async {
+  Future<dynamic> get(String endpoint, {Map<String, String>? queryParams, String? customBaseUrl, Map<String, String>? headers}) async {
     try {
       // Check internet connection first
       final isConnected = await NetworkUtils.isConnected();
@@ -24,21 +25,18 @@ class ApiClient {
       final url = customBaseUrl ?? baseUrl;
       final uri = Uri.parse('$url$endpoint').replace(queryParameters: queryParams);
       
-      final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
-      // Fetch token automatically if not provided
-      final currentToken = token ?? await AuthService.getToken();
-      if (currentToken != null && currentToken.isNotEmpty) {
-        headers['Authorization'] = currentToken;
-      }
-      // Log token before sending request to confirm it's not null
-      debugPrint('ApiClient GET $endpoint - token: ${currentToken ?? 'NULL'}');
-      // Log the actual Authorization header value
-      debugPrint('Authorization header: ${headers['Authorization']}');
+      final requestHeaders = await _buildHeaders(headers);
+      
+      // Log request details
+      _logRequest('GET', uri, requestHeaders, null);
 
-      final response = await http.get(uri, headers: headers).timeout(
+      final response = await http.get(uri, headers: requestHeaders).timeout(
         ApiConfig.connectionTimeout,
         onTimeout: () => throw TimeoutException(ApiConfig.connectionTimeoutMessage),
       );
+      
+      // Log response details
+      _logResponse('GET', response);
       
       return _handleResponse(response);
     } on SocketException {
@@ -46,7 +44,7 @@ class ApiClient {
     } on TimeoutException {
       throw Exception(ApiConfig.connectionTimeoutMessage);
     } catch (e) {
-      debugPrint('API Error: $e');
+      debugPrint('❌ GET $endpoint - API Error: $e');
       rethrow;
     }
   }
@@ -67,38 +65,25 @@ class ApiClient {
       final url = customBaseUrl ?? baseUrl;
       final uri = Uri.parse('$url$endpoint');
       
-      final requestHeaders = Map<String, String>.from(ApiConfig.defaultHeaders);
-      // Fetch token automatically if not provided
-      final currentToken = token ?? await AuthService.getToken();
-      if (currentToken != null && currentToken.isNotEmpty) {
-        requestHeaders['Authorization'] = currentToken;
-      }
-      if (headers != null) {
-        requestHeaders.addAll(headers);
-      }
+      final requestHeaders = await _buildHeaders(headers);
+      final requestBody = body != null ? jsonEncode(body) : null;
+      
+      // Log request details
+      _logRequest('POST', uri, requestHeaders, requestBody);
 
-      // Log token before sending request to confirm it's not null
-      debugPrint('ApiClient POST $endpoint - token: ${currentToken ?? 'NULL'}');
-      // Optional debug: show URL and header keys
-      try {
-        final headerKeys = requestHeaders.keys.join(', ');
-        debugPrint('ApiClient POST url: $uri, headers: [$headerKeys]');
-      } catch (_) {}
-
-      // Log the actual Authorization header value
-      debugPrint('Authorization header: ${requestHeaders['Authorization']}');
-
-      // Only include a body if provided; avoid sending the literal string 'null'
       final response = await http
           .post(
             uri,
             headers: requestHeaders,
-            body: body != null ? jsonEncode(body) : null,
+            body: requestBody,
           )
           .timeout(
         ApiConfig.connectionTimeout,
         onTimeout: () => throw TimeoutException(ApiConfig.connectionTimeoutMessage),
       );
+
+      // Log response details
+      _logResponse('POST', response);
 
       return _handleResponse(response);
     } on SocketException {
@@ -106,9 +91,177 @@ class ApiClient {
     } on TimeoutException {
       throw Exception(ApiConfig.connectionTimeoutMessage);
     } catch (e) {
-      debugPrint('API Error: $e');
+      debugPrint('❌ POST $endpoint - API Error: $e');
       rethrow;
     }
+  }
+
+  /// Performs a PUT request
+  Future<dynamic> put({
+    required String endpoint, 
+    Map<String, dynamic>? body, 
+    String? customBaseUrl,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      // Check internet connection first
+      final isConnected = await NetworkUtils.isConnected();
+      if (!isConnected) {
+        throw Exception(ApiConfig.noInternetMessage);
+      }
+
+      final url = customBaseUrl ?? baseUrl;
+      final uri = Uri.parse('$url$endpoint');
+      
+      final requestHeaders = await _buildHeaders(headers);
+      final requestBody = body != null ? jsonEncode(body) : null;
+      
+      // Log request details
+      _logRequest('PUT', uri, requestHeaders, requestBody);
+
+      final response = await http
+          .put(
+            uri,
+            headers: requestHeaders,
+            body: requestBody,
+          )
+          .timeout(
+        ApiConfig.connectionTimeout,
+        onTimeout: () => throw TimeoutException(ApiConfig.connectionTimeoutMessage),
+      );
+
+      // Log response details
+      _logResponse('PUT', response);
+
+      return _handleResponse(response);
+    } on SocketException {
+      throw Exception(ApiConfig.noInternetMessage);
+    } on TimeoutException {
+      throw Exception(ApiConfig.connectionTimeoutMessage);
+    } catch (e) {
+      debugPrint('❌ PUT $endpoint - API Error: $e');
+      rethrow;
+    }
+  }
+
+  /// Performs a DELETE request
+  Future<dynamic> delete(String endpoint, {Map<String, String>? queryParams, String? customBaseUrl, Map<String, String>? headers}) async {
+    try {
+      // Check internet connection first
+      final isConnected = await NetworkUtils.isConnected();
+      if (!isConnected) {
+        throw Exception(ApiConfig.noInternetMessage);
+      }
+
+      final url = customBaseUrl ?? baseUrl;
+      final uri = Uri.parse('$url$endpoint').replace(queryParameters: queryParams);
+      
+      final requestHeaders = await _buildHeaders(headers);
+      
+      // Log request details
+      _logRequest('DELETE', uri, requestHeaders, null);
+
+      final response = await http.delete(uri, headers: requestHeaders).timeout(
+        ApiConfig.connectionTimeout,
+        onTimeout: () => throw TimeoutException(ApiConfig.connectionTimeoutMessage),
+      );
+      
+      // Log response details
+      _logResponse('DELETE', response);
+      
+      return _handleResponse(response);
+    } on SocketException {
+      throw Exception(ApiConfig.noInternetMessage);
+    } on TimeoutException {
+      throw Exception(ApiConfig.connectionTimeoutMessage);
+    } catch (e) {
+      debugPrint('❌ DELETE $endpoint - API Error: $e');
+      rethrow;
+    }
+  }
+
+  /// Builds request headers by combining default headers with optional headers
+  Future<Map<String, String>> _buildHeaders(Map<String, String>? additionalHeaders) async {
+    final headers = Map<String, String>.from(ApiConfig.defaultHeaders);
+    
+    // Fetch token automatically if not provided
+    final currentToken = token ?? await AuthService.getToken();
+    if (currentToken != null && currentToken.isNotEmpty) {
+      // Remove "Bearer " prefix if it exists, as the API expects just the token
+      final cleanToken = currentToken.startsWith('Bearer ') 
+          ? currentToken.substring(7) 
+          : currentToken;
+      headers['Authorization'] = cleanToken;
+    }
+    
+    // Add additional headers if provided
+    if (additionalHeaders != null) {
+      headers.addAll(additionalHeaders);
+    }
+    
+    return headers;
+  }
+
+  /// Logs request details for debugging
+  void _logRequest(String method, Uri uri, Map<String, String> headers, String? body) {
+    if (kDebugMode) {
+      debugPrint('\n=== API Request ===');
+      debugPrint('$method $uri');
+      debugPrint('Headers: ${_formatHeaders(headers)}');
+      if (body != null) {
+        debugPrint('Body: $body');
+      }
+      debugPrint('==================\n');
+    }
+  }
+
+  /// Logs response details for debugging
+  void _logResponse(String method, http.Response response) {
+    if (kDebugMode) {
+      debugPrint('\n=== API Response ===');
+      debugPrint('Status: ${response.statusCode}');
+      debugPrint('URL: ${response.request?.url}');
+      debugPrint('Headers: ${_formatHeaders(response.headers)}');
+      debugPrint('Body: ${response.body}');
+      debugPrint('==================\n');
+    }
+  }
+
+  /// Formats headers for logging (hides sensitive information)
+  String _formatHeaders(Map<String, String> headers) {
+    final sanitized = Map<String, String>.from(headers);
+    
+    // Hide sensitive headers
+    if (sanitized.containsKey('Authorization')) {
+      final authValue = sanitized['Authorization']!;
+      sanitized['Authorization'] = authValue.length > 10 
+          ? '${authValue.substring(0, 10)}...[hidden]'
+          : '[hidden]';
+    }
+    
+    return sanitized.entries
+        .map((e) => '${e.key}: ${e.value}')
+        .join('\n');
+  }
+
+  /// Extracts error message from response body
+  String _extractErrorMessage(dynamic responseBody, String defaultMessage) {
+    if (responseBody == null) return defaultMessage;
+    
+    if (responseBody is Map<String, dynamic>) {
+      // Try different common error message fields
+      return responseBody['message'] ?? 
+             responseBody['error'] ?? 
+             responseBody['detail'] ?? 
+             responseBody['title'] ?? 
+             defaultMessage;
+    }
+    
+    if (responseBody is String) {
+      return responseBody.isNotEmpty ? responseBody : defaultMessage;
+    }
+    
+    return defaultMessage;
   }
 
   dynamic _handleResponse(http.Response response) {
@@ -119,19 +272,27 @@ class ApiClient {
     switch (response.statusCode) {
       case 200: // Success
       case 201: // Created
-      case 204: // No Content
+      case 202: // Accepted
         return responseBody;
+      case 204: // No Content
+        return null;
       case 400: // Bad Request
-        throw Exception(responseBody?['message'] ?? 'طلب غير صالح');
+        throw Exception(_extractErrorMessage(responseBody, 'طلب غير صالح'));
       case 401: // Unauthorized
-        throw Exception(ApiConfig.unauthorizedMessage);
+        throw Exception(_extractErrorMessage(responseBody, ApiConfig.unauthorizedMessage));
       case 403: // Forbidden
-        throw Exception('غير مصرح لك بالوصول إلى هذا المورد');
+        throw Exception(_extractErrorMessage(responseBody, 'غير مصرح لك بالوصول إلى هذا المورد'));
       case 404: // Not Found
-        throw Exception(ApiConfig.notFoundMessage);
+        throw Exception(_extractErrorMessage(responseBody, ApiConfig.notFoundMessage));
+      case 422: // Unprocessable Entity
+        throw Exception(_extractErrorMessage(responseBody, 'بيانات غير صالحة'));
+      case 429: // Too Many Requests
+        throw Exception(_extractErrorMessage(responseBody, 'تم تجاوز الحد المسموح من الطلبات'));
       case 500: // Internal Server Error
+      case 502: // Bad Gateway
+      case 503: // Service Unavailable
       default:
-        throw Exception(responseBody?['message'] ?? ApiConfig.serverErrorMessage);
+        throw Exception(_extractErrorMessage(responseBody, ApiConfig.serverErrorMessage));
     }
   }
 }

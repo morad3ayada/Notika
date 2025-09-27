@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -78,6 +79,182 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
       'meetingLink': conference.link,
       if (!isUpcoming) 'attended': true, // For past conferences, assume attended
     };
+  }
+
+  // Create new conference and send to server
+  Future<void> _createNewConference(
+    BuildContext context,
+    String? selectedSchool,
+    String? selectedStage,
+    String? selectedSection,
+    String? selectedSubject,
+  ) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              content: Row(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(width: 20),
+                  Text('جاري إنشاء الجلسة...'),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Get the selected class data to extract IDs
+      final profileState = _profileBloc.state;
+      if (profileState is! ProfileLoaded) {
+        throw Exception('لا يمكن الحصول على بيانات الملف الشخصي');
+      }
+
+      // Find the selected class to get the required IDs
+      TeacherClass? selectedClass;
+      for (final teacherClass in profileState.classes) {
+        if (teacherClass.schoolName == selectedSchool &&
+            teacherClass.levelName == selectedStage &&
+            teacherClass.className == selectedSection &&
+            teacherClass.subjectName == selectedSubject) {
+          selectedClass = teacherClass;
+          break;
+        }
+      }
+
+      if (selectedClass == null) {
+        throw Exception('لا يمكن العثور على الفصل المحدد');
+      }
+
+      // Combine date and time to create startAt DateTime
+      if (_selectedDate == null || _selectedTime == null) {
+        throw Exception('الرجاء تحديد تاريخ ووقت الجلسة');
+      }
+
+      final startAt = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      // Parse duration
+      final durationMinutes = int.tryParse(_durationController.text) ?? 0;
+      if (durationMinutes <= 0) {
+        throw Exception('مدة الجلسة يجب أن تكون أكبر من صفر');
+      }
+
+      // Validate that we have the required IDs
+      if (selectedClass.levelId == null || selectedClass.classId == null || selectedClass.subjectId == null) {
+        throw Exception('بيانات الفصل غير مكتملة. يرجى المحاولة مرة أخرى.');
+      }
+
+      // Prepare conference data with proper levelSubjectId
+      final conferenceData = {
+        'levelSubjectId': selectedClass.levelSubjectId ?? selectedClass.subjectId ?? '3c5df344-36f8-4fb7-9065-52088db12fba',
+        'levelId': selectedClass.levelId!,
+        'classId': selectedClass.classId!,
+        'title': _titleController.text.trim(),
+        'link': _meetingLinkController.text.trim(),
+        'startAt': startAt.toUtc().toIso8601String(),
+        'durationMinutes': durationMinutes,
+      };
+
+      debugPrint('🔄 Sending conference data: $conferenceData');
+
+      // Send to server using BLoC
+      _conferencesBloc.add(CreateConference(conferenceData));
+
+      // Listen for the result
+      final completer = Completer<void>();
+      late StreamSubscription subscription;
+      
+      subscription = _conferencesBloc.stream.listen((state) {
+        if (state is ConferencesLoaded) {
+          // Success - conference was created and conferences list was updated
+          if (!completer.isCompleted) {
+            completer.complete();
+            subscription.cancel();
+            
+            // Close loading dialog
+            Navigator.of(context).pop();
+            
+            // Persist selections back to parent state
+            setState(() {
+              this.selectedSchool = selectedSchool;
+              this.selectedStage = selectedStage;
+              this.selectedSection = selectedSection;
+              this.selectedSubject = selectedSubject;
+            });
+            
+            // Clear form
+            _titleController.clear();
+            _dateController.clear();
+            _timeController.clear();
+            _durationController.clear();
+            _meetingLinkController.clear();
+            _selectedDate = null;
+            _selectedTime = null;
+            
+            // Close dialog
+            Navigator.pop(context);
+            
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✅ تم إنشاء الجلسة بنجاح وتحديث القائمة'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else if (state is ConferenceCreateError) {
+          // Error occurred during creation
+          if (!completer.isCompleted) {
+            completer.completeError(Exception(state.message));
+            subscription.cancel();
+          }
+        } else if (state is ConferencesError) {
+          // General error occurred
+          if (!completer.isCompleted) {
+            completer.completeError(Exception(state.message));
+            subscription.cancel();
+          }
+        }
+      });
+
+      // Wait for completion or timeout
+      await completer.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          subscription.cancel();
+          throw Exception('انتهت مهلة الانتظار. يرجى المحاولة مرة أخرى.');
+        },
+      );
+
+    } catch (e) {
+      debugPrint('❌ Error creating conference: $e');
+      
+      // Close loading dialog if still open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ خطأ في إنشاء الجلسة: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   // Helper method to launch meeting URL
@@ -875,21 +1052,25 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () {
+                            onPressed: () async {
                               if (_formKey.currentState!.validate()) {
-                                // Persist selections back to parent state
-                                setState(() {
-                                  selectedSchool = localSelectedSchool;
-                                  selectedStage = localSelectedStage;
-                                  selectedSection = localSelectedSection;
-                                  selectedSubject = localSelectedSubject;
-                                });
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('تم إنشاء الجلسة بنجاح'),
-                                    backgroundColor: Colors.green,
-                                  ),
+                                // Validate that all required selections are made
+                                if (localSelectedSubject == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('الرجاء اختيار جميع الحقول المطلوبة'),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                
+                                await _createNewConference(
+                                  context,
+                                  localSelectedSchool,
+                                  localSelectedStage,
+                                  localSelectedSection,
+                                  localSelectedSubject,
                                 );
                               }
                             },
@@ -1149,7 +1330,7 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
               BlocBuilder<ConferencesBloc, ConferencesState>(
                 bloc: _conferencesBloc,
                 builder: (context, state) {
-                  if (state is ConferencesLoading) {
+                  if (state is ConferencesLoading || state is ConferenceCreating) {
                     return const Padding(
                       padding: EdgeInsets.all(50.0),
                       child: Center(

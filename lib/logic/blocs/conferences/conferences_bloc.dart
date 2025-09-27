@@ -92,14 +92,38 @@ class ConferencesBloc extends Bloc<ConferencesEvent, ConferencesState> {
       
       emit(const ConferenceCreating());
 
-      final createdConference = await _repository.createConference(event.conferenceData);
+      // createConference now returns the updated conferences list
+      final updatedConferences = await _repository.createConference(event.conferenceData);
       
-      debugPrint('✅ ConferencesBloc: Conference created successfully: ${createdConference.title}');
+      debugPrint('✅ ConferencesBloc: Conference created successfully, received ${updatedConferences.length} conferences');
       
-      emit(ConferenceCreated(createdConference));
+      // Separate conferences into upcoming and past based on startAt time
+      final now = DateTime.now();
+      final List<ConferenceModel> upcomingConferences = [];
+      final List<ConferenceModel> pastConferences = [];
 
-      // Reload conferences to get the updated list
-      add(const LoadConferences(forceRefresh: true));
+      for (final conference in updatedConferences) {
+        if (conference.startAt.isAfter(now)) {
+          upcomingConferences.add(conference);
+        } else {
+          pastConferences.add(conference);
+        }
+      }
+
+      // Sort upcoming conferences by startAt (earliest first)
+      upcomingConferences.sort((a, b) => a.startAt.compareTo(b.startAt));
+      
+      // Sort past conferences by startAt (most recent first)
+      pastConferences.sort((a, b) => b.startAt.compareTo(a.startAt));
+
+      debugPrint('✅ ConferencesBloc: Separated into ${upcomingConferences.length} upcoming and ${pastConferences.length} past conferences');
+
+      // Emit the loaded state with updated conferences
+      emit(ConferencesLoaded(
+        upcomingConferences: upcomingConferences,
+        pastConferences: pastConferences,
+        lastUpdated: DateTime.now(),
+      ));
 
     } catch (e, stackTrace) {
       debugPrint('❌ ConferencesBloc: Error creating conference: $e');

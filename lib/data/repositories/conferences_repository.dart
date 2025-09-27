@@ -78,24 +78,52 @@ class ConferencesRepository {
     }
   }
 
-  /// Creates a new conference
-  /// This method can be implemented later if needed for the "Add Conference" functionality
-  Future<ConferenceModel> createConference(Map<String, dynamic> conferenceData) async {
+  /// Creates a new conference and returns updated conferences list
+  /// Takes conference data and formats it according to API requirements
+  Future<List<ConferenceModel>> createConference(Map<String, dynamic> conferenceData) async {
     try {
       debugPrint('🔄 Creating new conference...');
       
+      // Format the request body according to API requirements
+      final requestBody = {
+        'levelSubjectId': conferenceData['levelSubjectId'],
+        'levelId': conferenceData['levelId'],
+        'classId': conferenceData['classId'],
+        'title': conferenceData['title'],
+        'link': conferenceData['link'],
+        'startAt': conferenceData['startAt'], // Should already be ISO string
+        'durationMinutes': conferenceData['durationMinutes'],
+      };
+      
+      debugPrint('📤 Sending request body: $requestBody');
+      
       final response = await _apiClient.post(
-        endpoint: '/api/session',
-        body: conferenceData,
+        endpoint: '/api/session/add',
+        body: requestBody,
       );
       
       if (response == null) {
         throw Exception('لم يتم استلام رد من الخادم');
       }
 
-      final conference = ConferenceModel.fromJson(response);
-      debugPrint('✅ Conference created successfully: ${conference.title}');
-      return conference;
+      debugPrint('📥 Create response: $response');
+
+      // Check if the response indicates success
+      final isSuccess = response['isSuccess'] == true;
+      final message = response['message']?.toString() ?? '';
+      
+      if (!isSuccess) {
+        throw Exception(message.isNotEmpty ? message : 'فشل في إنشاء الجلسة');
+      }
+
+      debugPrint('✅ Conference created successfully: $message');
+      
+      // After successful creation, fetch updated conferences list
+      debugPrint('🔄 Fetching updated conferences list...');
+      final updatedConferences = await getConferences();
+      
+      debugPrint('✅ Retrieved ${updatedConferences.length} conferences after creation');
+      return updatedConferences;
       
     } catch (e) {
       debugPrint('❌ Error creating conference: $e');

@@ -3,10 +3,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
+import '../../../logic/blocs/attendance/attendance_bloc.dart';
+import '../../../logic/blocs/attendance/attendance_event.dart';
+import '../../../logic/blocs/attendance/attendance_state.dart';
 import '../../../data/models/profile_models.dart';
+import '../../../data/models/attendance_model.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
-import '../../../data/services/attendance_service.dart';
+import '../../../data/repositories/attendance_repository.dart';
 
 class StudentAttendanceScreen extends StatefulWidget {
   const StudentAttendanceScreen({super.key});
@@ -23,12 +27,12 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   String? selectedSubject;
   bool selectAll = false;
   late final ProfileBloc _profileBloc;
-  final AttendanceService _attendanceService = AttendanceService();
+  late final AttendanceBloc _attendanceBloc;
 
   // Dynamic students state
-  List<Map<String, dynamic>> students = [];
-  bool studentsLoading = false;
-  String? studentsError;
+  List<StudentAttendance> students = [];
+  DateTime selectedDate = DateTime.now();
+  int classOrder = 1;
 
   // سيتم اشتقاق القوائم التالية من بيانات الـ BLoC بدلاً من البيانات الثابتة
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -66,108 +70,110 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     return set.toList();
   }
 
-  Future<void> _fetchStudentsForSelection(List<TeacherClass> classes) async {
+  void _fetchStudentsForSelection(List<TeacherClass> classes) {
     // Need levelId and classId from current selection
-    if (selectedSchool == null || selectedStage == null || selectedSection == null) return;
+    if (selectedSchool == null || selectedStage == null || selectedSection == null || selectedSubject == null) return;
+    
     final match = classes.firstWhere(
-      (c) => c.schoolName == selectedSchool && c.levelName == selectedStage && c.className == selectedSection,
+      (c) => c.schoolName == selectedSchool && c.levelName == selectedStage && c.className == selectedSection && c.subjectName == selectedSubject,
       orElse: () => const TeacherClass(),
     );
-    final levelId = match.levelId;
-    final classId = match.classId;
-    if (levelId == null || classId == null) {
-      setState(() {
-        students = [];
-        studentsError = 'تعذر تحديد المرحلة أو الشعبة.';
-      });
+    
+    final subjectId = match.levelSubjectId ?? match.subjectId ?? '';
+    final levelId = match.levelId ?? '';
+    final classId = match.classId ?? '';
+    
+    if (subjectId.isEmpty || levelId.isEmpty || classId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر تحديد بيانات الفصل')),
+      );
       return;
     }
 
-    setState(() {
-      studentsLoading = true;
-      studentsError = null;
-      students = [];
-      selectAll = false;
-    });
-    try {
-      final data = await _attendanceService.getClassStudents(levelId: levelId, classId: classId);
-      // Map API response to local UI structure: name, id, status
-      final mapped = data.map<Map<String, dynamic>>((e) {
-        final parts = [
-          (e['firstName'] ?? '').toString().trim(),
-          (e['secondName'] ?? '').toString().trim(),
-          (e['thirdName'] ?? '').toString().trim(),
-          (e['fourthName'] ?? '').toString().trim(),
-        ].where((p) => p.isNotEmpty).toList();
-        final fullName = parts.isEmpty ? (e['nickName']?.toString() ?? 'طالب') : parts.join(' ');
-        final id = (e['studentId'] ?? e['userId'] ?? '').toString();
-        return {
-          'name': fullName,
-          'id': id,
-          'status': 'present', // default
-        };
-      }).toList();
-
-      setState(() {
-        students = mapped;
-        studentsLoading = false;
-      });
-    } catch (err) {
-      setState(() {
-        studentsLoading = false;
-        studentsError = err.toString().replaceAll('Exception: ', '');
-      });
-    }
+    // Load students using BLoC
+    _attendanceBloc.add(LoadStudentsEvent(
+      subjectId: subjectId,
+      levelId: levelId,
+      classId: classId,
+    ));
   }
 
   void _onAttendanceChanged(String studentId, String status) {
-    setState(() {
-      for (var student in students) {
-        if (student['id'] == studentId) {
-          student['status'] = status;
-          break;
-        }
-      }
-    });
+    _attendanceBloc.add(UpdateStudentAttendanceEvent(
+      studentId: studentId,
+      status: status,
+    ));
   }
 
   @override
   void initState() {
     super.initState();
     _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
+    _attendanceBloc = AttendanceBloc(sl<AttendanceRepository>());
   }
 
   @override
   void dispose() {
     _profileBloc.close();
+    _attendanceBloc.close();
     super.dispose();
   }
 
   void _submitAttendance() {
     if (selectedSchool == null ||
         selectedStage == null ||
-        selectedSection == null) {
+        selectedSection == null ||
+        selectedSubject == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('يرجى اختيار المدرسة والمرحلة والشعبة أولاً'),
-            duration: Duration(seconds: 1)),
+            content: Text('يرجى اختيار المدرسة والمرحلة والشعبة والمادة أولاً')),
       );
       return;
     }
-    final presentCount = students.where((s) => s['status'] == 'present').length;
-    final absentCount = students.where((s) => s['status'] == 'absent').length;
-    final excusedCount = students.where((s) => s['status'] == 'excused').length;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            'تم حفظ الحضور: حاضر $presentCount، غائب $absentCount، مجاز $excusedCount'),
-        backgroundColor: const Color(0xFF43A047),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-    Future.delayed(const Duration(seconds: 1), () {
-      Navigator.of(context).pushReplacementNamed('/home');
-    });
+    
+    if (students.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يوجد طلاب لتسجيل الحضور')),
+      );
+      return;
+    }
+    
+    // Get profile state to access classes
+    final profileState = _profileBloc.state;
+    if (profileState is! ProfileLoaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('خطأ في تحميل بيانات الملف الشخصي')),
+      );
+      return;
+    }
+    
+    try {
+      // Create attendance submission using BLoC helper method
+      final submission = AttendanceBloc.createSubmissionFromFormData(
+        classes: profileState.classes,
+        selectedSchool: selectedSchool!,
+        selectedStage: selectedStage!,
+        selectedSection: selectedSection!,
+        selectedSubject: selectedSubject!,
+        students: students,
+        classOrder: classOrder,
+        date: selectedDate,
+      );
+      
+      // Submit via BLoC
+      _attendanceBloc.add(SendAttendanceEvent(
+        students: submission.students,
+        subjectId: submission.subjectId,
+        levelId: submission.levelId,
+        classId: submission.classId,
+        classOrder: submission.classOrder,
+        date: submission.date,
+      ));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطأ في إعداد البيانات: $e')),
+      );
+    }
   }
 
   Widget buildHorizontalSelector({
@@ -320,12 +326,55 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
             final sections = _buildSections(classes, selectedSchool, selectedStage);
             final subjects = _buildSubjects(classes, selectedSchool, selectedStage, selectedSection);
 
-            return SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            return BlocConsumer<AttendanceBloc, AttendanceState>(
+              bloc: _attendanceBloc,
+              listener: (context, attendanceState) {
+                if (attendanceState is AttendanceSubmitted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(attendanceState.message),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  // Navigate back after successful submission
+                  Future.delayed(const Duration(seconds: 1), () {
+                    Navigator.of(context).pop();
+                  });
+                } else if (attendanceState is AttendanceSubmissionFailed) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(attendanceState.message),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                } else if (attendanceState is StudentsLoaded) {
+                  setState(() {
+                    students = attendanceState.students;
+                    selectAll = false;
+                  });
+                } else if (attendanceState is StudentAttendanceUpdated) {
+                  setState(() {
+                    students = attendanceState.students;
+                  });
+                } else if (attendanceState is StudentsLoadingFailed) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(attendanceState.message),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              builder: (context, attendanceState) {
+                final isSubmitting = attendanceState is AttendanceSubmitting;
+                final isLoadingStudents = attendanceState is AttendanceLoading;
+
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     buildHorizontalSelector(
                       items: schools,
                       selected: selectedSchool,
@@ -336,7 +385,6 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                           selectedSection = null;
                           selectedSubject = null;
                           students = [];
-                          studentsError = null;
                         });
                       },
                       label: 'المدرسة',
@@ -352,7 +400,6 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                             selectedSection = null;
                             selectedSubject = null;
                             students = [];
-                            studentsError = null;
                           });
                         },
                         label: 'المرحلة',
@@ -362,15 +409,12 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                       buildHorizontalSelector(
                         items: sections,
                         selected: selectedSection,
-                        onSelect: (val) async {
+                        onSelect: (val) {
                           setState(() {
                             selectedSection = val;
                             selectedSubject = null;
                             students = [];
-                            studentsError = null;
                           });
-                          // Fetch students based on Level + Class (section)
-                          await _fetchStudentsForSelection(classes);
                         },
                         label: 'الشعبة',
                       ),
@@ -379,10 +423,11 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                       buildHorizontalSelector(
                         items: subjects,
                         selected: selectedSubject,
-                        onSelect: (val) async {
+                        onSelect: (val) {
                           setState(() {
                             selectedSubject = val;
                           });
+                          _fetchStudentsForSelection(classes);
                         },
                         label: 'المادة',
                       ),
@@ -397,14 +442,13 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                           if (val == true) {
                             setState(() {
                               selectAll = true;
-                              for (var student in students) {
-                                student['status'] = 'absent';
+                              for (var i = 0; i < students.length; i++) {
+                                _onAttendanceChanged(students[i].studentId, 'absent');
                               }
                             });
                           } else {
                             setState(() {
                               selectAll = false;
-                              // لا نغير حالة الطلاب عند إلغاء التحديد
                             });
                           }
                         },
@@ -412,32 +456,106 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                       const Text('اختيار الكل كـ غياب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
-                  if (studentsLoading) ...[
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                  ] else if (studentsError != null) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24.0),
-                      child: Center(
-                        child: Text(
-                          studentsError!,
-                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                
+                // Date and Class Order Selection
+                if (selectedSubject != null) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('تاريخ الحضور', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: selectedDate,
+                                  firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                                  lastDate: DateTime.now().add(const Duration(days: 7)),
+                                );
+                                if (date != null) {
+                                  setState(() {
+                                    selectedDate = date;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.calendar_today),
+                                    const SizedBox(width: 8),
+                                    Text('${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ] else if (students.isEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24.0),
-                      child: Center(
-                        child: Text(
-                          'لا يوجد طلاب لهذه الشعبة',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('رقم الحصة', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<int>(
+                              value: classOrder,
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              items: List.generate(8, (index) => index + 1)
+                                  .map((order) => DropdownMenuItem(
+                                        value: order,
+                                        child: Text('الحصة $order'),
+                                      ))
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() {
+                                    classOrder = value;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                if (isLoadingStudents) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ] else if (students.isEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24.0),
+                    child: Center(
+                      child: Text(
+                        selectedSubject == null ? 'اختر المادة لعرض الطلاب' : 'لا يوجد طلاب لهذه المادة',
+                        style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500),
+                      ),
                     ),
-                  ] else ...[
+                  ),
+                ],
+                
+                if (students.isNotEmpty) ...[
                   ...students.map((student) => Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -450,7 +568,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                           children: [
                             CircleAvatar(
                               backgroundColor: const Color(0xFF1976D2),
-                              child: Text(student['name'][0],
+                              child: Text(student.name.isNotEmpty ? student.name[0] : 'ط',
                                   style: const TextStyle(color: Colors.white)),
                             ),
                             const SizedBox(width: 10),
@@ -458,10 +576,9 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    student['name'],
+                                    student.name,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 18,
@@ -477,20 +594,20 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                             Container(
                               margin: const EdgeInsets.symmetric(horizontal: 4),
                               child: DropdownButton<String>(
-                                value: student['status'],
+                                value: student.status,
                                 isDense: true,
                                 underline: SizedBox(),
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: student['status'] == 'present'
-                                      ? Color(0xFF43A047)
-                                      : student['status'] == 'absent'
-                                          ? Color(0xFFE53935)
-                                          : Color(0xFFFB8C00),
+                                  color: student.status == 'present'
+                                      ? const Color(0xFF43A047)
+                                      : student.status == 'absent'
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFFB8C00),
                                   fontSize: 16,
                                 ),
                                 icon: const Icon(Icons.arrow_drop_down, size: 22),
-                                items: [
+                                items: const [
                                   DropdownMenuItem(
                                     value: 'present',
                                     child: Text('حاضر', style: TextStyle(color: Color(0xFF43A047), fontWeight: FontWeight.bold)),
@@ -505,15 +622,16 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                                   ),
                                 ],
                                 onChanged: (value) {
-                                  if (value != null) _onAttendanceChanged(student['id'], value);
-                                  // إذا تم تغيير حالة أي طالب يدويًا، ألغِ اختيار الكل
-                                  if (selectAll && value != 'absent') {
-                                    setState(() {
-                                      selectAll = false;
-                                    });
+                                  if (value != null) {
+                                    _onAttendanceChanged(student.studentId, value);
+                                    // إذا تم تغيير حالة أي طالب يدويًا، ألغِ اختيار الكل
+                                    if (selectAll && value != 'absent') {
+                                      setState(() {
+                                        selectAll = false;
+                                      });
+                                    }
                                   }
                                 },
-                                // احذف itemHeight نهائياً
                                 dropdownColor: Colors.white,
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -522,49 +640,48 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                         ),
                       )),
                   ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1976D2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1976D2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      label: const Text(
-                        'إرسال الحضور',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    icon: isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.send, color: Colors.white),
+                    label: Text(
+                      isSubmitting ? 'جاري الإرسال...' : 'إرسال الحضور',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
-                      onPressed: _submitAttendance,
+                    ),
+                    onPressed: isSubmitting ? null : _submitAttendance,
+                  ),
+                )]]
+                      ,
                     ),
                   ),
-                ],
-                    if (selectedSection == null)
-                      SizedBox(
-                        height: 200,
-                        child: Center(
-                          child: Text(
-                            'اختر الشعبة لعرض الطلاب',
-                            style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
+                );
 }
+                      );
+                    },
+                  ),
+                ),
+              );
+            }
+          }

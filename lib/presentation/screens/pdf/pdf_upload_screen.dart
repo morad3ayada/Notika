@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:math';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/scheduler.dart';
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
@@ -14,13 +15,17 @@ import '../../../logic/blocs/file_classification/file_classification_event.dart'
 import '../../../logic/blocs/file_classification/file_classification_state.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../data/models/file_classification_model.dart';
+import '../../../data/models/chapter_unit_model.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/file_classification_repository.dart';
+import '../../../data/repositories/chapter_unit_repository.dart';
 import '../../../data/services/auth_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../../utils/teacher_class_matcher.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/user_provider.dart';
 
 class PdfUploadScreen extends StatefulWidget {
   const PdfUploadScreen({super.key});
@@ -180,6 +185,11 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   final List<String> units = []; // قائمة الفصول/الوحدات التي ينشئها المستخدم
   late final ProfileBloc _profileBloc;
   late final FileClassificationBloc _fileClassificationBloc;
+  
+  // متغيرات جديدة للوحدات/الفصول من السيرفر
+  List<ChapterUnit> serverUnits = [];
+  bool isLoadingUnits = false;
+  String? unitsErrorMessage;
 
   // Helpers to derive dynamic lists from TeacherClass
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -233,6 +243,89 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   FlutterSoundRecorder? _recorder;
   bool _isRecording = false;
   String? _audioPath;
+
+  // دالة لجلب الوحدات/الفصول من السيرفر
+  Future<void> fetchChapterUnits() async {
+    if (selectedSubject == null || selectedStage == null || selectedSection == null) {
+      return;
+    }
+    
+    setState(() {
+      isLoadingUnits = true;
+      unitsErrorMessage = null;
+    });
+    
+    try {
+      // الحصول على معرف المستخدم والتوكن
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final token = userProvider.token;
+      
+      // الحصول على معرفات المرحلة والشعبة والمادة
+      final classes = await _getTeacherClasses();
+      final matchedClass = TeacherClassMatcher.findMatchingTeacherClass(
+        classes,
+        selectedSchool,
+        selectedStage,
+        selectedSection,
+        selectedSubject,
+      );
+      
+      if (matchedClass == null || token == null) {
+        setState(() {
+          isLoadingUnits = false;
+          unitsErrorMessage = 'لم يتم العثور على بيانات الفصل أو المستخدم';
+        });
+        return;
+      }
+
+      print('✅ Found TeacherClass:');
+      print('   School: ${matchedClass.schoolName ?? ''}');
+      print('   Level: ${matchedClass.levelName ?? ''}');
+      print('   Section: ${matchedClass.className ?? ''}');
+      print('   Subject: ${matchedClass.subjectName ?? ''}');
+
+      // تحقق من وجود قيم صالحة
+      if (matchedClass.levelSubjectId == null || matchedClass.levelSubjectId!.isEmpty ||
+          matchedClass.levelId == null || matchedClass.levelId!.isEmpty ||
+          matchedClass.classId == null || matchedClass.classId!.isEmpty) {
+        setState(() {
+          isLoadingUnits = false;
+          unitsErrorMessage = 'بيانات الفصل غير مكتملة';
+        });
+        return;
+      }
+
+      // استدعاء الخدمة لجلب الوحدات/الفصول
+      final repository = sl<ChapterUnitRepository>();
+      final response = await repository.getChapterUnits(
+        levelSubjectId: matchedClass.levelSubjectId!,
+        levelId: matchedClass.levelId!,
+        classId: matchedClass.classId!,
+      );
+      
+      setState(() {
+        serverUnits = response.data;
+        isLoadingUnits = false;
+        if (!response.success) {
+          unitsErrorMessage = response.message;
+        }
+      });
+    } catch (e) {
+      setState(() {
+        isLoadingUnits = false;
+        unitsErrorMessage = 'حدث خطأ أثناء جلب البيانات: $e';
+      });
+    }
+  }
+  
+  // دالة مساعدة للحصول على فصول المعلم
+  Future<List<TeacherClass>> _getTeacherClasses() async {
+    final state = _profileBloc.state;
+    if (state is ProfileLoaded) {
+      return state.classes;
+    }
+    return [];
+  }
 
   @override
   void initState() {
@@ -424,113 +517,157 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (localUnits.isEmpty)
+                  // عرض الوحدات من السيرفر مع حالات التحميل والخطأ
+                  if (isLoadingUnits)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF1976D2),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (unitsErrorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            unitsErrorMessage!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 14,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              setModalState(() {
+                                fetchChapterUnits();
+                              });
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1976D2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'إعادة المحاولة',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (serverUnits.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child:
-                          Text('لا توجد خيارات بعد — قم بإضافة خيار بالأعلى.'),
+                      child: Text('لا توجد وحدات متاحة لهذا الفصل'),
                     )
                   else
                     Flexible(
                       child: ListView.separated(
                         shrinkWrap: true,
-                        itemCount: localUnits.length,
+                        itemCount: serverUnits.length,
                         separatorBuilder: (_, __) => const Divider(height: 12),
                         itemBuilder: (_, i) {
-                          final u = localUnits[i];
-                          final isSelected = localSelectedUnit == u;
+                          final unit = serverUnits[i];
+                          final isSelected = localSelectedUnit == unit.name;
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(u),
+                            title: Text(unit.name),
+                            subtitle: unit.description != null
+                                ? Text(
+                                    unit.description!,
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  )
+                                : null,
                             leading: Icon(
                               isSelected
                                   ? Icons.radio_button_checked
                                   : Icons.radio_button_off,
                               color: const Color(0xFF1976D2),
                             ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () async {
-                                bool? deleteConfirmed =
-                                    await showModalBottomSheet<bool>(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(
-                                        top: Radius.circular(20)),
-                                  ),
-                                  builder: (deleteCtx) =>
-                                      _DeleteConfirmationDialog(
-                                    unitName: u,
-                                    onConfirm: (confirmed) {
-                                      if (confirmed) {
-                                        setModalState(() {
-                                          localUnits.removeAt(i);
-                                          if (localSelectedUnit == u) {
-                                            localSelectedUnit =
-                                                localUnits.isNotEmpty
-                                                    ? localUnits[0]
-                                                    : null;
-                                          }
-                                        });
-                                      }
-                                      return confirmed;
-                                    },
-                                  ),
-                                );
-
-                                if (deleteConfirmed == true && mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('تم الحذف بنجاح'),
-                                      backgroundColor: Colors.green,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
                             onTap: () {
                               setModalState(() {
-                                localSelectedUnit = u;
+                                localSelectedUnit = unit.name;
+                              });
+                              // إغلاق الـ modal فوراً بعد اختيار الوحدة
+                              Navigator.of(ctx).pop();
+
+                              // تطبيق التغييرات فوراً
+                              setState(() {
+                                units.clear();
+                                units.addAll(localUnits);
+                                selectedUnit = localSelectedUnit;
                               });
                             },
                           );
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  units.clear();
+                                  units.addAll(localUnits);
+                                  if (localSelectedUnit != selectedUnit) {
+                                    selectedUnit = localSelectedUnit;
+                                  }
+                                });
+                                Navigator.of(ctx).pop();
+
+                                // جلب الوحدات من السيرفر عند تغيير المادة
+                                if (selectedSubject != null) {
+                                  fetchChapterUnits();
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1976D2),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'حفظ التغييرات',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            
+                          );
+                  const SizedBox(height: 8);
                         },
                       ),
-                    ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          units.clear();
-                          units.addAll(localUnits);
-                          if (localSelectedUnit != selectedUnit) {
-                            selectedUnit = localSelectedUnit;
-                          }
-                        });
-                        Navigator.of(ctx).pop();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1976D2),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'حفظ التغييرات',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                    ),  
                 ],
               ),
             ),
@@ -1038,6 +1175,11 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                                                   onTap: () {
                                                     setState(() {
                                                       selectedSubject = subject;
+                                                    });
+
+                                                    // جلب الوحدات من السيرفر عند اختيار مادة جديدة
+                                                    SchedulerBinding.instance.addPostFrameCallback((_) {
+                                                      fetchChapterUnits();
                                                     });
                                                   },
                                                   child: AnimatedContainer(

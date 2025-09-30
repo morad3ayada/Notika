@@ -12,6 +12,9 @@ import '../data/repositories/attendance_repository.dart';
 import '../data/repositories/chapter_unit_repository.dart';
 import '../data/repositories/schedule_repository.dart';
 import '../data/repositories/pdf_upload_repository.dart';
+import '../data/repositories/exam_export_repository.dart';
+import '../data/repositories/exam_schedule_repository.dart';
+import '../data/repositories/exam_questions_repository.dart';
 import '../api/api_client.dart';
 import '../config/api_config.dart';
 import '../providers/user_provider.dart';
@@ -41,4 +44,13 @@ void setupDependencies() {
   // إضافة PdfUploadRepository للـ dependency injection
   // عشان نقدر نستخدمه في الـ BLoC والشاشات
   sl.registerLazySingleton<PdfUploadRepository>(() => PdfUploadRepository());
+  
+  // إضافة ExamExportRepository
+  sl.registerLazySingleton<ExamExportRepository>(() => ExamExportRepository());
+  
+  // إضافة ExamScheduleRepository
+  sl.registerLazySingleton<ExamScheduleRepository>(() => ExamScheduleRepository());
+  
+  // إضافة ExamQuestionsRepository
+  sl.registerLazySingleton<ExamQuestionsRepository>(() => ExamQuestionsRepository());
 }

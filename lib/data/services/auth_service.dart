@@ -84,6 +84,25 @@ class AuthService {
     return prefs.getString(orgUrlKey);
   }
 
+  static Future<String?> getUserId() async {
+    try {
+      final authData = await getSavedAuthData();
+      if (authData == null) return null;
+      
+      final profile = authData['profile'] as Map<String, dynamic>?;
+      if (profile == null) return null;
+      
+      // محاولة الحصول على userId من عدة حقول محتملة
+      return profile['userId']?.toString() ?? 
+             profile['UserId']?.toString() ?? 
+             profile['id']?.toString() ?? 
+             profile['Id']?.toString();
+    } catch (e) {
+      debugPrint('Error getting user ID: $e');
+      return null;
+    }
+  }
+
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
     return token != null;

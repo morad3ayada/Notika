@@ -5,6 +5,8 @@ import '../../../data/services/auth_service.dart';
 import '../auth/sign_in.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../data/services/profile_service.dart';
+import '../../../data/repositories/daily_grade_titles_repository.dart';
+import '../../../di/injector.dart';
 
 class ProfileScreen extends StatefulWidget {
   // Accept legacy parameter to keep backward compatibility; it's unused now
@@ -68,15 +70,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'درجات اضافية'
   ];
 
-  void _showGradeDistributionSheet(BuildContext context, String className, Color color) {
+  void _showGradeDistributionSheet(BuildContext context, String className, Color color, TeacherClass teacherClass) {
     final List<Map<String, dynamic>> components = [];
     final TextEditingController gradeController = TextEditingController();
     String? selectedComponent;
     int totalGrade = 0;
+    bool _isSaving = false;
 
     void _addComponent() {
       if (selectedComponent != null && gradeController.text.isNotEmpty) {
         final int grade = int.tryParse(gradeController.text) ?? 0;
+        if (grade <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('الدرجة يجب أن تكون أكبر من صفر'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
         setState(() {
           components.add({
             'name': selectedComponent!,
@@ -89,24 +101,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
 
-    void _saveChanges() {
-      if (totalGrade != 100) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('خطأ في التوزيع'),
-            content: Text('مجموع الدرجات $totalGrade% يجب أن يكون 100%'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('حسناً'),
-              ),
-            ],
+    Future<void> _saveChanges() async {
+      if (components.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('يرجى إضافة مكون واحد على الأقل'),
+            backgroundColor: Colors.red,
           ),
         );
-      } else {
-        // Save logic here
-        Navigator.pop(context);
+        return;
+      }
+
+      // التحقق من وجود GUIDs
+      if (teacherClass.levelId == null || 
+          teacherClass.classId == null || 
+          teacherClass.levelSubjectId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('خطأ: بيانات الفصل غير مكتملة'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        _isSaving = true;
+      });
+
+      try {
+        final repository = sl<DailyGradeTitlesRepository>();
+        
+        // إرسال كل مكون للسيرفر
+        int successCount = 0;
+        for (int i = 0; i < components.length; i++) {
+          final component = components[i];
+          final success = await repository.createDailyGradeTitle(
+            title: component['name'],
+            maxGrade: component['grade'],
+            levelId: teacherClass.levelId!,
+            classId: teacherClass.classId!,
+            levelSubjectId: teacherClass.levelSubjectId!,
+            order: i + 1,
+          );
+          
+          if (success) {
+            successCount++;
+          }
+        }
+
+        setState(() {
+          _isSaving = false;
+        });
+
+        if (successCount == components.length) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('تم حفظ $successCount مكون بنجاح ✅'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('تم حفظ $successCount من ${components.length} مكون'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          _isSaving = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
 
@@ -252,7 +325,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _saveChanges,
+                        onPressed: _isSaving ? null : _saveChanges,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: color,
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -260,15 +333,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'حفظ التوزيع',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'Tajawal',
-                          ),
-                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'حفظ التوزيع',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Tajawal',
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -697,7 +779,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 Expanded(
                                   child: InkWell(
-                                    onTap: () => _showGradeDistributionSheet(context, name, color),
+                                    onTap: () => _showGradeDistributionSheet(context, name, color, cls),
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                                       child: Row(

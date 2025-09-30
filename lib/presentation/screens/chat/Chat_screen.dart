@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../logic/blocs/all_students/all_students_barrel.dart';
+import '../../../data/repositories/all_students_repository.dart';
+import '../../../data/models/all_students_model.dart';
+import '../../../di/injector.dart';
 import 'Chat_details_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -10,31 +15,32 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _query = '';
+  late final AllStudentsBloc _allStudentsBloc;
 
-  final List<Map<String, String>> users = [
-    {"name": "أحمد محمد", "lastMessage": "السلام عليكم", "avatar": "A"},
-    {"name": "سارة علي", "lastMessage": "تم إرسال الواجب", "avatar": "S"},
-    {"name": "محمد سمير", "lastMessage": "شكرًا لك", "avatar": "M"},
-    {"name": "منى خالد", "lastMessage": "متى الامتحان؟", "avatar": "M"},
-    {"name": "يوسف إبراهيم", "lastMessage": "تم الحضور اليوم", "avatar": "Y"},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _allStudentsBloc = AllStudentsBloc(sl<AllStudentsRepository>())
+      ..add(const LoadAllStudentsEvent());
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _allStudentsBloc.close();
     super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (query.trim().isEmpty) {
+      _allStudentsBloc.add(const LoadAllStudentsEvent());
+    } else {
+      _allStudentsBloc.add(SearchAllStudentsEvent(query));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final visibleUsers = users.where((u) {
-      if (_query.trim().isEmpty) return true;
-      final name = (u['name'] ?? '').toLowerCase();
-      final last = (u['lastMessage'] ?? '').toLowerCase();
-      final q = _query.toLowerCase();
-      return name.contains(q) || last.contains(q);
-    }).toList();
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Stack(
@@ -74,10 +80,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (val) => setState(() => _query = val),
+                      onChanged: _onSearchChanged,
                       textAlign: TextAlign.right,
                       decoration: const InputDecoration(
-                        hintText: 'ابحث عن طالب/ولي أمر...',
+                        hintText: 'ابحث عن طالب...',
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         prefixIcon: Icon(Icons.search, color: Color(0xFF1976D2)),
@@ -85,19 +91,76 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // قائمة الأشخاص
+                  // قائمة الطلاب من السيرفر
                   Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsetsDirectional.only(top: 6, bottom: 6),
-                      itemCount: visibleUsers.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 18),
-                      itemBuilder: (context, index) {
-                        final user = visibleUsers[index];
-                        // Get Arabic initial (first letter)
-                        String getArabicInitial(String name) {
-                          final parts = name.trim().split(' ');
-                          return parts[0].substring(0, 1);
+                    child: BlocBuilder<AllStudentsBloc, AllStudentsState>(
+                      bloc: _allStudentsBloc,
+                      builder: (context, state) {
+                        // حالة التحميل
+                        if (state is AllStudentsLoading) {
+                          return const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(),
+                                SizedBox(height: 16),
+                                Text('جاري تحميل الطلاب...'),
+                              ],
+                            ),
+                          );
                         }
+                        
+                        // حالة الخطأ
+                        if (state is AllStudentsError) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                                const SizedBox(height: 16),
+                                Text(
+                                  state.message,
+                                  style: const TextStyle(color: Colors.red),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () => _allStudentsBloc.add(const RefreshAllStudentsEvent()),
+                                  child: const Text('إعادة المحاولة'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        
+                        // حالة القائمة الفارغة
+                        if (state is AllStudentsEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.people_outline, size: 60, color: Colors.grey[400]),
+                                const SizedBox(height: 16),
+                                Text(
+                                  state.message,
+                                  style: TextStyle(color: Colors.grey[600]),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        
+                        // حالة النجاح - عرض الطلاب
+                        if (state is AllStudentsLoaded) {
+                          final students = state.students;
+                          
+                          return ListView.separated(
+                            padding: const EdgeInsetsDirectional.only(top: 6, bottom: 6),
+                            itemCount: students.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 18),
+                            itemBuilder: (context, index) {
+                              final student = students[index];
                         return Stack(
                           clipBehavior: Clip.none,
                           children: [
@@ -109,7 +172,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => ChatDetailsScreen(userName: user["name"]!, avatar: user["avatar"]!),
+                                      builder: (_) => ChatDetailsScreen(
+                                        userName: student.displayName,
+                                        avatar: student.initial,
+                                        studentUserId: student.userId ?? '',
+                                      ),
                                     ),
                                   );
                                 },
@@ -133,7 +200,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              user["name"]!,
+                                              student.displayName,
                                               style: TextStyle(
                                                 color: Theme.of(context).textTheme.titleMedium?.color ?? const Color(0xFF233A5A),
                                                 fontWeight: FontWeight.bold,
@@ -143,7 +210,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                             ),
                                             const SizedBox(height: 6),
                                             Text(
-                                              user["lastMessage"]!,
+                                              student.nickName ?? 'طالب',
                                               style: const TextStyle(
                                                 color: Color(0xFF90A4AE),
                                                 fontSize: 14.5,
@@ -185,7 +252,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ),
                                 child: Center(
                                   child: Text(
-                                    getArabicInitial(user["name"]!),
+                                    student.initial,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -196,6 +263,14 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                           ],
+                        );
+                            },
+                          );
+                        }
+                        
+                        // حالة افتراضية
+                        return const Center(
+                          child: Text('لا توجد بيانات'),
                         );
                       },
                     ),

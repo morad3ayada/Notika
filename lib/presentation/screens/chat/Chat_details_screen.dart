@@ -1,20 +1,94 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../logic/blocs/chat/chat_barrel.dart';
+import '../../../data/repositories/chat_repository.dart';
+import '../../../data/services/auth_service.dart';
+import '../../../di/injector.dart';
 
-class ChatDetailsScreen extends StatelessWidget {
+class ChatDetailsScreen extends StatefulWidget {
   final String userName;
   final String avatar;
-  const ChatDetailsScreen({super.key, required this.userName, required this.avatar});
+  final String studentUserId;
+  
+  const ChatDetailsScreen({
+    super.key, 
+    required this.userName, 
+    required this.avatar,
+    required this.studentUserId,
+  });
+
+  @override
+  State<ChatDetailsScreen> createState() => _ChatDetailsScreenState();
+}
+
+class _ChatDetailsScreenState extends State<ChatDetailsScreen> {
+  late final ChatBloc _chatBloc;
+  final TextEditingController _messageController = TextEditingController();
+  String? _currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _chatBloc = ChatBloc(sl<ChatRepository>());
+    _loadConversation();
+  }
+
+  Future<void> _loadConversation() async {
+    // الحصول على معرف المعلم الحالي (userId)
+    _currentUserId = await AuthService.getUserId();
+    
+    if (_currentUserId != null && widget.studentUserId.isNotEmpty) {
+      // جلب المحادثة
+      _chatBloc.add(LoadConversationEvent(
+        teacherId: _currentUserId!,
+        studentId: widget.studentUserId,
+      ));
+      
+      // تحديد الرسائل كمقروءة (في الخلفية)
+      _chatBloc.add(MarkMessagesAsReadEvent(
+        currentUserId: _currentUserId!,
+        otherUserId: widget.studentUserId,
+      ));
+    }
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _chatBloc.close();
+    super.dispose();
+  }
+
+  void _sendMessage() {
+    final message = _messageController.text.trim();
+    
+    if (message.isEmpty) {
+      return;
+    }
+    
+    if (_currentUserId == null || widget.studentUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('خطأ: لا يمكن إرسال الرسالة'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // إرسال الرسالة
+    _chatBloc.add(SendMessageEvent(
+      senderId: _currentUserId!,
+      receiverId: widget.studentUserId,
+      message: message,
+    ));
+
+    // مسح حقل الإدخال
+    _messageController.clear();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> messages = [
-      {"fromMe": false, "text": "السلام عليكم"},
-      {"fromMe": true, "text": "وعليكم السلام"},
-      {"fromMe": false, "text": "متى الامتحان القادم؟"},
-      {"fromMe": true, "text": "يوم الأحد القادم بإذن الله"},
-      {"fromMe": false, "text": "شكرًا لك"},
-      {"fromMe": true, "text": "العفو"},
-    ];
     return Scaffold(
       body: Stack(
         children: [
@@ -46,13 +120,13 @@ class ChatDetailsScreen extends StatelessWidget {
                       CircleAvatar(
                         backgroundColor: const Color(0xFF64B5F6),
                         child: Text(
-                          getArabicInitial(userName),
+                          widget.avatar,
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        userName,
+                        widget.userName,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
@@ -64,42 +138,134 @@ class ChatDetailsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final isMe = msg["fromMe"] as bool;
-                      return Align(
-                        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                          constraints: const BoxConstraints(maxWidth: 260),
-                          decoration: BoxDecoration(
-                            color: isMe ? const Color(0xFF1976D2) : Theme.of(context).cardColor,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 4),
-                              bottomRight: Radius.circular(isMe ? 4 : 16),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 6,
-                                offset: Offset(0, 2),
+                  child: BlocBuilder<ChatBloc, ChatState>(
+                    bloc: _chatBloc,
+                    builder: (context, state) {
+                      // حالة التحميل
+                      if (state is ChatLoading) {
+                        return const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text('جاري تحميل المحادثة...'),
+                            ],
+                          ),
+                        );
+                      }
+                      
+                      // حالة الخطأ
+                      if (state is ChatError) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                              const SizedBox(height: 16),
+                              Text(
+                                state.message,
+                                style: const TextStyle(color: Colors.red),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _loadConversation,
+                                child: const Text('إعادة المحاولة'),
                               ),
                             ],
                           ),
-                          child: Text(
-                            msg["text"],
-                            style: TextStyle(
-                              color: isMe ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color ?? const Color(0xFF233A5A),
-                              fontSize: 15.5,
-                            ),
+                        );
+                      }
+                      
+                      // حالة القائمة الفارغة
+                      if (state is ChatEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.chat_bubble_outline, size: 60, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              Text(
+                                state.message,
+                                style: TextStyle(color: Colors.grey[600]),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
-                        ),
+                        );
+                      }
+                      
+                      // حالة النجاح - عرض الرسائل
+                      if (state is ChatLoaded) {
+                        final messages = state.messages;
+                        
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            final msg = messages[index];
+                            final isMe = msg.isSentByMe(_currentUserId ?? '');
+                            
+                            return Align(
+                              alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                                constraints: const BoxConstraints(maxWidth: 260),
+                                decoration: BoxDecoration(
+                                  color: isMe ? const Color(0xFF1976D2) : Theme.of(context).cardColor,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(16),
+                                    topRight: const Radius.circular(16),
+                                    bottomLeft: Radius.circular(isMe ? 16 : 4),
+                                    bottomRight: Radius.circular(isMe ? 4 : 16),
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 6,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      msg.message ?? '',
+                                      style: TextStyle(
+                                        color: isMe ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color ?? const Color(0xFF233A5A),
+                                        fontSize: 15.5,
+                                      ),
+                                    ),
+                                    // علامات القراءة (فقط للرسائل المرسلة من المعلم)
+                                    if (isMe) ...[
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.done_all,
+                                            size: 16,
+                                            color: msg.isRead == true 
+                                                ? Colors.lightBlueAccent  // لون مضيء للمقروءة
+                                                : Colors.white60,          // لون مطفي لغير المقروءة
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      }
+                      
+                      // حالة افتراضية
+                      return const Center(
+                        child: Text('لا توجد بيانات'),
                       );
                     },
                   ),
@@ -122,12 +288,15 @@ class ChatDetailsScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          child: const TextField(
-                            decoration: InputDecoration(
+                          child: TextField(
+                            controller: _messageController,
+                            decoration: const InputDecoration(
                               hintText: 'اكتب رسالة...',
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             ),
+                            textAlign: TextAlign.right,
+                            onSubmitted: (_) => _sendMessage(),
                           ),
                         ),
                       ),
@@ -146,7 +315,7 @@ class ChatDetailsScreen extends StatelessWidget {
                         ),
                         child: IconButton(
                           icon: const Icon(Icons.send, color: Colors.white),
-                          onPressed: () {},
+                          onPressed: _sendMessage,
                         ),
                       ),
                     ],

@@ -17,6 +17,8 @@ import '../data/repositories/exam_schedule_repository.dart';
 import '../data/repositories/exam_questions_repository.dart';
 import '../data/repositories/class_students_repository.dart';
 import '../data/repositories/daily_grade_titles_repository.dart';
+import '../data/repositories/all_students_repository.dart';
+import '../data/repositories/chat_repository.dart';
 import '../api/api_client.dart';
 import '../config/api_config.dart';
 import '../providers/user_provider.dart';
@@ -61,4 +63,10 @@ void setupDependencies() {
   
   // إضافة DailyGradeTitlesRepository
   sl.registerLazySingleton<DailyGradeTitlesRepository>(() => DailyGradeTitlesRepository());
+  
+  // إضافة AllStudentsRepository
+  sl.registerLazySingleton<AllStudentsRepository>(() => AllStudentsRepository());
+  
+  // إضافة ChatRepository
+  sl.registerLazySingleton<ChatRepository>(() => ChatRepository());
 }

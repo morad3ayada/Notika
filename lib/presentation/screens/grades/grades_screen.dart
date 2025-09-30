@@ -5,7 +5,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
+import '../../../logic/blocs/class_students/class_students_barrel.dart';
+import '../../../logic/blocs/daily_grade_titles/daily_grade_titles_barrel.dart';
 import '../../../data/models/profile_models.dart';
+import '../../../data/models/class_students_model.dart';
+import '../../../data/models/daily_grade_titles_model.dart';
+import '../../../data/repositories/class_students_repository.dart';
+import '../../../data/repositories/daily_grade_titles_repository.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
 
@@ -24,6 +30,13 @@ class _GradesScreenState extends State<GradesScreen> {
   String currentSemester = 'الثاني';
   String gradeType = 'يومية'; // 'يومية' or 'فصلية'
   late final ProfileBloc _profileBloc;
+  late final ClassStudentsBloc _classStudentsBloc;
+  late final DailyGradeTitlesBloc _dailyGradeTitlesBloc;
+
+  // قائمة الطلاب المجلوبة من السيرفر
+  List<Student> _serverStudents = [];
+  // قائمة عناوين الدرجات من السيرفر
+  List<String> _serverGradeTitles = [];
 
   // القوائم الديناميكية تُشتق من بيانات السيرفر (TeacherClass)
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -62,10 +75,208 @@ class _GradesScreenState extends State<GradesScreen> {
         e.schoolName == school &&
         e.levelName == stage &&
         e.className == section)) {
-      if ((c.subjectName ?? '').trim().isNotEmpty)
         set.add(c.subjectName!.trim());
     }
     return set.toList();
+  }
+
+  /// بناء صف الطالب من بيانات السيرفر - بدون scroll داخلي
+  Widget _buildStudentRow(
+      Student student, List<DailyGradeTitle> gradeTitles, int index) {
+    print('🎓 عرض الطالب: ${student.displayName} (ID: ${student.id})');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+      child: Row(
+        children: [
+          // اسم الطالب - ثابت
+          Container(
+            width: 120,
+            height: 60,
+            alignment: Alignment.center,
+            child: Container(
+              decoration: BoxDecoration(
+                color: index.isEven
+                    ? const Color(0xFFE3F2FD)
+                    : const Color(0xFFBBDEFB),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                student.displayName,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1976D2),
+                ),
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.rtl,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          // حقول الدرجات من السيرفر - بدون scroll
+          ...gradeTitles.map((gradeTitle) {
+            return Container(
+              width: 100,
+              height: 60,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              child: TextField(
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: '0',
+                  hintStyle: TextStyle(
+                    color: Colors.grey.withOpacity(0.5),
+                    fontSize: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: Colors.grey.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: Colors.grey.withOpacity(0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF1976D2),
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                ),
+                style: const TextStyle(
+                  fontSize: 12,
+                ),
+                onChanged: currentSemester == 'الثاني'
+                    ? (value) {
+                        // TODO: حفظ الدرجة للطالب والعنوان المحدد
+                        print('💾 حفظ درجة ${gradeTitle.displayTitle} للطالب ${student.displayName}: $value');
+                      }
+                    : null,
+                readOnly: currentSemester != 'الثاني',
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  /// دالة جلب عناوين الدرجات عند اختيار المادة
+  void _loadGradeTitles(List<TeacherClass> classes) {
+    if (selectedSchool == null ||
+        selectedStage == null ||
+        selectedSection == null ||
+        selectedSubject == null) {
+      print('⚠️ لم يتم اختيار جميع الحقول المطلوبة');
+      return;
+    }
+
+    print('🔍 البحث عن TeacherClass المطابق...');
+    print('   المدرسة المختارة: $selectedSchool');
+    print('   المرحلة المختارة: $selectedStage');
+    print('   الشعبة المختارة: $selectedSection');
+    print('   المادة المختارة: $selectedSubject');
+    
+    // طباعة جميع الـ classes المتاحة للتشخيص
+    print('📚 عدد الـ classes المتاحة: ${classes.length}');
+    for (var i = 0; i < classes.length && i < 3; i++) {
+      final c = classes[i];
+      print('   Class $i: school="${c.schoolName}", level="${c.levelName}", class="${c.className}", subject="${c.subjectName}"');
+      print('      IDs: levelSubjectId="${c.levelSubjectId}", levelId="${c.levelId}", classId="${c.classId}"');
+    }
+
+    // البحث عن TeacherClass المطابق
+    TeacherClass? matchingClass;
+    try {
+      matchingClass = classes.firstWhere(
+        (c) =>
+            c.schoolName?.trim() == selectedSchool?.trim() &&
+            c.levelName?.trim() == selectedStage?.trim() &&
+            c.className?.trim() == selectedSection?.trim() &&
+            c.subjectName?.trim() == selectedSubject?.trim(),
+      );
+    } catch (e) {
+      print('❌ لم يتم العثور على TeacherClass مطابق');
+      print('   الخطأ: $e');
+    }
+
+    // التحقق من وجود جميع المعرفات المطلوبة
+    if (matchingClass != null &&
+        matchingClass.levelSubjectId != null &&
+        matchingClass.levelId != null &&
+        matchingClass.classId != null) {
+      
+      print('✅ تم العثور على TeacherClass المطابق');
+      print('🔄 جلب عناوين الدرجات...');
+      print('📊 LevelSubjectId: ${matchingClass.levelSubjectId}');
+      print('📊 LevelId: ${matchingClass.levelId}');
+      print('📊 ClassId: ${matchingClass.classId}');
+
+      _dailyGradeTitlesBloc.add(LoadDailyGradeTitlesEvent(
+        levelSubjectId: matchingClass.levelSubjectId!,
+        levelId: matchingClass.levelId!,
+        classId: matchingClass.classId!,
+      ));
+    } else {
+      print('❌ لم يتم العثور على معرفات المرحلة والفصل والمادة');
+      if (matchingClass != null) {
+        print('   LevelSubjectId: ${matchingClass.levelSubjectId}');
+        print('   LevelId: ${matchingClass.levelId}');
+        print('   ClassId: ${matchingClass.classId}');
+      } else {
+        print('   matchingClass is null');
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('خطأ: لم يتم العثور على معرفات الفصل والمادة'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  /// دالة جلب الطلاب عند اختيار المرحلة والشعبة
+  void _loadClassStudents(List<TeacherClass> classes) {
+    if (selectedSchool == null ||
+        selectedStage == null ||
+        selectedSection == null) {
+      return;
+    }
+
+    // البحث عن TeacherClass المطابق
+    final matchingClass = classes.firstWhere(
+      (c) =>
+          c.schoolName == selectedSchool &&
+          c.levelName == selectedStage &&
+          c.className == selectedSection,
+      orElse: () => TeacherClass(),
+    );
+
+    if (matchingClass.levelId != null && matchingClass.classId != null) {
+      print('🔄 جلب طلاب الفصل...');
+      print('📚 LevelId: ${matchingClass.levelId}');
+      print('📚 ClassId: ${matchingClass.classId}');
+
+      _classStudentsBloc.add(LoadClassStudentsEvent(
+        levelId: matchingClass.levelId!,
+        classId: matchingClass.classId!,
+      ));
+    } else {
+      print('❌ لم يتم العثور على معرفات المرحلة والفصل');
+    }
   }
 
   // Students data with dynamic components
@@ -120,6 +331,17 @@ class _GradesScreenState extends State<GradesScreen> {
     super.initState();
     _profileBloc = ProfileBloc(sl<ProfileRepository>())
       ..add(const FetchProfile());
+    _classStudentsBloc = ClassStudentsBloc(sl<ClassStudentsRepository>());
+    _dailyGradeTitlesBloc =
+        DailyGradeTitlesBloc(sl<DailyGradeTitlesRepository>());
+  }
+
+  @override
+  void dispose() {
+    _profileBloc.close();
+    _classStudentsBloc.close();
+    _dailyGradeTitlesBloc.close();
+    super.dispose();
   }
 
   @override
@@ -130,100 +352,362 @@ class _GradesScreenState extends State<GradesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeStudentData(gradeComponents);
     });
-    return Directionality(
+
+    return MultiBlocListener(
+      listeners: [
+        // مستمع لعناوين الدرجات
+        BlocListener<DailyGradeTitlesBloc, DailyGradeTitlesState>(
+          bloc: _dailyGradeTitlesBloc,
+          listener: (context, state) {
+            if (state is DailyGradeTitlesLoaded) {
+              setState(() {
+                _serverGradeTitles = state.titleNames;
+              });
+              print(
+                  '✅ تم تحديث عناوين الدرجات: ${state.titleNames.join(', ')}');
+            } else if (state is DailyGradeTitlesError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('خطأ في جلب عناوين الدرجات: ${state.message}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            } else if (state is DailyGradeTitlesEmpty) {
+              setState(() {
+                _serverGradeTitles = [];
+              });
+              print('📭 لا توجد عناوين درجات محددة');
+            }
+          },
+        ),
+      ],
+      child: Directionality(
         textDirection: TextDirection.rtl,
         child: Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            appBar: PreferredSize(
-              preferredSize: const Size.fromHeight(80),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(32),
-                    bottomRight: Radius.circular(32),
-                  ),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(80),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF233A5A), Color(0xFF1976D2)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18.0, vertical: 8),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back_ios,
-                              color: Colors.white, size: 24),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            "إدخال الدرجات",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 22,
-                            ),
-                            textAlign: TextAlign.center,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18.0, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios,
+                            color: Colors.white, size: 24),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          "إدخال الدرجات",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
                           ),
+                          textAlign: TextAlign.center,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-            body: BlocBuilder<ProfileBloc, ProfileState>(
-                bloc: _profileBloc,
-                builder: (context, state) {
-                  if (state is ProfileLoading || state is ProfileInitial) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (state is ProfileError) {
-                    return Center(
-                      child: Text(
-                        state.message,
-                        style: const TextStyle(
-                            color: Colors.red, fontWeight: FontWeight.bold),
+          ),
+          body: BlocBuilder<ProfileBloc, ProfileState>(
+            bloc: _profileBloc,
+            builder: (context, state) {
+              if (state is ProfileLoading || state is ProfileInitial) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (state is ProfileError) {
+                return Center(
+                  child: Text(
+                    state.message,
+                    style: const TextStyle(
+                        color: Colors.red, fontWeight: FontWeight.bold),
+                  ),
+                );
+              }
+
+              final loaded = state as ProfileLoaded;
+              final classes = loaded.classes;
+              final schools = _buildSchools(classes);
+              final stages = _buildStages(classes, selectedSchool);
+              final sections =
+                  _buildSections(classes, selectedSchool, selectedStage);
+              final subjects = _buildSubjects(
+                  classes, selectedSchool, selectedStage, selectedSection);
+
+              return SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // اختيار المدرسة
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.only(top: 8, bottom: 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: schools.map((school) {
+                              final isSelected = selectedSchool == school;
+                              return Container(
+                                margin: const EdgeInsets.only(left: 12),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(25),
+                                    onTap: () {
+                                      setState(() {
+                                        selectedSchool = school;
+                                        selectedStage = null;
+                                        selectedSection = null;
+                                        selectedSubject = null;
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 20, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        gradient: isSelected
+                                            ? const LinearGradient(
+                                                colors: [
+                                                  Color(0xFF1976D2),
+                                                  Color(0xFF64B5F6)
+                                                ],
+                                                begin: Alignment.centerRight,
+                                                end: Alignment.centerLeft,
+                                              )
+                                            : null,
+                                        color: isSelected
+                                            ? null
+                                            : Theme.of(context).cardColor,
+                                        borderRadius: BorderRadius.circular(25),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.1),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Text(
+                                        school,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.color ??
+                                                  const Color(0xFF233A5A),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                        textDirection: TextDirection.rtl,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
                       ),
-                    );
-                  }
-
-                  final loaded = state as ProfileLoaded;
-                  final classes = loaded.classes;
-                  final schools = _buildSchools(classes);
-                  final stages = _buildStages(classes, selectedSchool);
-                  final sections =
-                      _buildSections(classes, selectedSchool, selectedStage);
-                  final subjects = _buildSubjects(
-                      classes, selectedSchool, selectedStage, selectedSection);
-
-                  return SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Column(
+                      // اختيار المرحلة
+                      if (selectedSchool != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.only(top: 8, bottom: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: stages.map((stage) {
+                                final isSelected = selectedStage == stage;
+                                return Container(
+                                  margin: const EdgeInsets.only(left: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedStage = stage;
+                                          selectedSection = null;
+                                          selectedSubject = null;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [
+                                                    Color(0xFF1976D2),
+                                                    Color(0xFF64B5F6)
+                                                  ],
+                                                  begin: Alignment.centerRight,
+                                                  end: Alignment.centerLeft,
+                                                )
+                                              : null,
+                                          color: isSelected
+                                              ? null
+                                              : Theme.of(context).cardColor,
+                                          borderRadius:
+                                              BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          stage,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? Colors.white
+                                                : Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.color ??
+                                                    const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      // اختيار الشعبة
+                      if (selectedStage != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.only(top: 8, bottom: 8),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: sections.map((section) {
+                                final isSelected = selectedSection == section;
+                                return Container(
+                                  margin: const EdgeInsets.only(left: 12),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(25),
+                                      onTap: () {
+                                        setState(() {
+                                          selectedSection = section;
+                                          selectedSubject = null;
+                                        });
+                                        // جلب الطلاب عند اختيار الشعبة
+                                        _loadClassStudents(classes);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [
+                                                    Color(0xFF1976D2),
+                                                    Color(0xFF64B5F6)
+                                                  ],
+                                                  begin: Alignment.centerRight,
+                                                  end: Alignment.centerLeft,
+                                                )
+                                              : null,
+                                          color: isSelected
+                                              ? null
+                                              : Theme.of(context).cardColor,
+                                          borderRadius:
+                                              BorderRadius.circular(25),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          section,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? Colors.white
+                                                : Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.color ??
+                                                    const Color(0xFF233A5A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                          textDirection: TextDirection.rtl,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      // اختيار المادة
+                      if (selectedSection != null)
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // اختيار المدرسة
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.only(top: 8, bottom: 8),
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Row(
-                                  children: schools.map((school) {
-                                    final isSelected = selectedSchool == school;
+                                  children: subjects.map((subject) {
+                                    final isSelected =
+                                        selectedSubject == subject;
                                     return Container(
                                       margin: const EdgeInsets.only(left: 12),
                                       child: Material(
@@ -233,11 +717,10 @@ class _GradesScreenState extends State<GradesScreen> {
                                               BorderRadius.circular(25),
                                           onTap: () {
                                             setState(() {
-                                              selectedSchool = school;
-                                              selectedStage = null;
-                                              selectedSection = null;
-                                              selectedSubject = null;
+                                              selectedSubject = subject;
                                             });
+                                            // جلب عناوين الدرجات عند اختيار المادة
+                                            _loadGradeTitles(classes);
                                           },
                                           child: AnimatedContainer(
                                             duration: const Duration(
@@ -271,7 +754,7 @@ class _GradesScreenState extends State<GradesScreen> {
                                               ],
                                             ),
                                             child: Text(
-                                              school,
+                                              subject,
                                               style: TextStyle(
                                                 color: isSelected
                                                     ? Colors.white
@@ -293,490 +776,345 @@ class _GradesScreenState extends State<GradesScreen> {
                                 ),
                               ),
                             ),
-                            // اختيار المرحلة
-                            if (selectedSchool != null)
-                              Container(
-                                width: double.infinity,
-                                padding:
-                                    const EdgeInsets.only(top: 8, bottom: 8),
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: stages.map((stage) {
-                                      final isSelected = selectedStage == stage;
-                                      return Container(
-                                        margin: const EdgeInsets.only(left: 12),
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: InkWell(
-                                            borderRadius:
-                                                BorderRadius.circular(25),
-                                            onTap: () {
-                                              setState(() {
-                                                selectedStage = stage;
-                                                selectedSection = null;
-                                                selectedSubject = null;
-                                              });
-                                            },
-                                            child: AnimatedContainer(
-                                              duration: const Duration(
-                                                  milliseconds: 200),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 20,
-                                                      vertical: 12),
-                                              decoration: BoxDecoration(
-                                                gradient: isSelected
-                                                    ? const LinearGradient(
-                                                        colors: [
-                                                          Color(0xFF1976D2),
-                                                          Color(0xFF64B5F6)
-                                                        ],
-                                                        begin: Alignment
-                                                            .centerRight,
-                                                        end: Alignment
-                                                            .centerLeft,
-                                                      )
-                                                    : null,
-                                                color: isSelected
-                                                    ? null
-                                                    : Theme.of(context)
-                                                        .cardColor,
-                                                borderRadius:
-                                                    BorderRadius.circular(25),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.1),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Text(
-                                                stage,
-                                                style: TextStyle(
-                                                  color: isSelected
-                                                      ? Colors.white
-                                                      : Theme.of(context)
-                                                              .textTheme
-                                                              .titleMedium
-                                                              ?.color ??
-                                                          const Color(
-                                                              0xFF233A5A),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                ),
-                                                textDirection:
-                                                    TextDirection.rtl,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                              ),
-                            // اختيار الشعبة
-                            if (selectedStage != null)
-                              Container(
-                                width: double.infinity,
-                                padding:
-                                    const EdgeInsets.only(top: 8, bottom: 8),
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: sections.map((section) {
-                                      final isSelected =
-                                          selectedSection == section;
-                                      return Container(
-                                        margin: const EdgeInsets.only(left: 12),
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: InkWell(
-                                            borderRadius:
-                                                BorderRadius.circular(25),
-                                            onTap: () {
-                                              setState(() {
-                                                selectedSection = section;
-                                                selectedSubject = null;
-                                              });
-                                            },
-                                            child: AnimatedContainer(
-                                              duration: const Duration(
-                                                  milliseconds: 200),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 20,
-                                                      vertical: 12),
-                                              decoration: BoxDecoration(
-                                                gradient: isSelected
-                                                    ? const LinearGradient(
-                                                        colors: [
-                                                          Color(0xFF1976D2),
-                                                          Color(0xFF64B5F6)
-                                                        ],
-                                                        begin: Alignment
-                                                            .centerRight,
-                                                        end: Alignment
-                                                            .centerLeft,
-                                                      )
-                                                    : null,
-                                                color: isSelected
-                                                    ? null
-                                                    : Theme.of(context)
-                                                        .cardColor,
-                                                borderRadius:
-                                                    BorderRadius.circular(25),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.1),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Text(
-                                                section,
-                                                style: TextStyle(
-                                                  color: isSelected
-                                                      ? Colors.white
-                                                      : Theme.of(context)
-                                                              .textTheme
-                                                              .titleMedium
-                                                              ?.color ??
-                                                          const Color(
-                                                              0xFF233A5A),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                ),
-                                                textDirection:
-                                                    TextDirection.rtl,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                              ),
-                            // اختيار المادة
-                            if (selectedSection != null)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.only(
-                                        top: 8, bottom: 8),
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Row(
-                                        children: subjects.map((subject) {
-                                          final isSelected =
-                                              selectedSubject == subject;
-                                          return Container(
-                                            margin:
-                                                const EdgeInsets.only(left: 12),
-                                            child: Material(
-                                              color: Colors.transparent,
-                                              child: InkWell(
-                                                borderRadius:
-                                                    BorderRadius.circular(25),
-                                                onTap: () {
-                                                  setState(() {
-                                                    selectedSubject = subject;
-                                                  });
-                                                },
-                                                child: AnimatedContainer(
-                                                  duration: const Duration(
-                                                      milliseconds: 200),
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 20,
-                                                      vertical: 12),
-                                                  decoration: BoxDecoration(
-                                                    gradient: isSelected
-                                                        ? const LinearGradient(
-                                                            colors: [
-                                                              Color(0xFF1976D2),
-                                                              Color(0xFF64B5F6)
-                                                            ],
-                                                            begin: Alignment
-                                                                .centerRight,
-                                                            end: Alignment
-                                                                .centerLeft,
-                                                          )
-                                                        : null,
-                                                    color: isSelected
-                                                        ? null
-                                                        : Theme.of(context)
-                                                            .cardColor,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            25),
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: Colors.black
-                                                            .withOpacity(0.1),
-                                                        blurRadius: 8,
-                                                        offset:
-                                                            const Offset(0, 2),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  child: Text(
-                                                    subject,
-                                                    style: TextStyle(
-                                                      color: isSelected
-                                                          ? Colors.white
-                                                          : Theme.of(context)
-                                                                  .textTheme
-                                                                  .titleMedium
-                                                                  ?.color ??
-                                                              const Color(
-                                                                  0xFF233A5A),
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 16,
-                                                    ),
-                                                    textDirection:
-                                                        TextDirection.rtl,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ),
-                                  ),
-                                  // اختيار نوع الدرجات
-                                  if (selectedSubject != null)
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 8.0, horizontal: 16.0),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child:
-                                                _buildGradeTypeButton('يومية'),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child:
-                                                _buildGradeTypeButton('فصلية'),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-
-                            // اختيار الفصل الدراسي (يظهر فقط في حالة الدرجات اليومية)
-                            if (selectedSubject != null && gradeType == 'يومية')
+                            // اختيار نوع الدرجات
+                            if (selectedSubject != null)
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0, vertical: 12),
+                                    vertical: 8.0, horizontal: 16.0),
                                 child: Row(
                                   children: [
-                                    // الفصل الأول
                                     Expanded(
-                                      child: GestureDetector(
-                                        onTap: () => setState(
-                                            () => currentSemester = 'الأول'),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 16),
-                                          decoration: BoxDecoration(
-                                            gradient: currentSemester == 'الأول'
-                                                ? const LinearGradient(
-                                                    colors: [
-                                                      Color(0xFF1976D2),
-                                                      Color(0xFF64B5F6)
-                                                    ],
-                                                    begin:
-                                                        Alignment.centerRight,
-                                                    end: Alignment.centerLeft,
-                                                  )
-                                                : null,
-                                            color: currentSemester == 'الأول'
-                                                ? null
-                                                : Colors.grey[200],
-                                            borderRadius:
-                                                const BorderRadius.horizontal(
-                                              right: Radius.circular(16),
-                                              left: Radius.zero,
-                                            ),
-                                            boxShadow: currentSemester ==
-                                                    'الأول'
-                                                ? [
-                                                    BoxShadow(
-                                                      color: Colors.blue
-                                                          .withOpacity(0.2),
-                                                      blurRadius: 10,
-                                                      offset:
-                                                          const Offset(0, 4),
-                                                    ),
-                                                  ]
-                                                : null,
-                                          ),
-                                          child: Text(
-                                            'الفصل الأول',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: currentSemester == 'الأول'
-                                                  ? Colors.white
-                                                  : Colors.grey[700],
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                      child: _buildGradeTypeButton('يومية'),
                                     ),
-                                    // الفصل الثاني
+                                    const SizedBox(width: 16),
                                     Expanded(
-                                      child: GestureDetector(
-                                        onTap: () => setState(
-                                            () => currentSemester = 'الثاني'),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 16),
-                                          decoration: BoxDecoration(
-                                            gradient: currentSemester ==
-                                                    'الثاني'
-                                                ? const LinearGradient(
-                                                    colors: [
-                                                      Color(0xFF1976D2),
-                                                      Color(0xFF64B5F6)
-                                                    ],
-                                                    begin:
-                                                        Alignment.centerRight,
-                                                    end: Alignment.centerLeft,
-                                                  )
-                                                : null,
-                                            color: currentSemester == 'الثاني'
-                                                ? null
-                                                : Colors.grey[200],
-                                            borderRadius:
-                                                const BorderRadius.horizontal(
-                                              left: Radius.circular(16),
-                                              right: Radius.zero,
-                                            ),
-                                            boxShadow: currentSemester ==
-                                                    'الثاني'
-                                                ? [
-                                                    BoxShadow(
-                                                      color: Colors.blue
-                                                          .withOpacity(0.2),
-                                                      blurRadius: 10,
-                                                      offset:
-                                                          const Offset(0, 4),
-                                                    ),
-                                                  ]
-                                                : null,
-                                          ),
-                                          child: Text(
-                                            'الفصل الثاني',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: currentSemester == 'الثاني'
-                                                  ? Colors.white
-                                                  : Colors.grey[700],
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                      child: _buildGradeTypeButton('فصلية'),
                                     ),
                                   ],
                                 ),
                               ),
-                            // جدول الطلاب (يختلف حسب نوع الدرجات)
-                            if (selectedSubject != null) ...[
-                              if (gradeType == 'فصلية')
-                                _buildTermGradesTable()
-                              else
-                                Column(
-                                  children: [
-                                    const SizedBox(height: 12),
-                                    // رأس الجدول
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8.0),
-                                      child: Row(
-                                        children: [
-                                          // Student Name Column
-                                          const Expanded(
-                                            flex: 2,
-                                            child: Text(
-                                              'اسم الطالب',
-                                              style: TextStyle(
-                                                color: Color(0xFF1976D2),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
+                          ],
+                        ),
+
+                      // اختيار الفصل الدراسي (يظهر فقط في حالة الدرجات اليومية)
+                      if (selectedSubject != null && gradeType == 'يومية')
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0, vertical: 12),
+                          child: Row(
+                            children: [
+                              // الفصل الأول
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      setState(() => currentSemester = 'الأول'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    decoration: BoxDecoration(
+                                      gradient: currentSemester == 'الأول'
+                                          ? const LinearGradient(
+                                              colors: [
+                                                Color(0xFF1976D2),
+                                                Color(0xFF64B5F6)
+                                              ],
+                                              begin: Alignment.centerRight,
+                                              end: Alignment.centerLeft,
+                                            )
+                                          : null,
+                                      color: currentSemester == 'الأول'
+                                          ? null
+                                          : Colors.grey[200],
+                                      borderRadius:
+                                          const BorderRadius.horizontal(
+                                        right: Radius.circular(16),
+                                        left: Radius.zero,
+                                      ),
+                                      boxShadow: currentSemester == 'الأول'
+                                          ? [
+                                              BoxShadow(
+                                                color: Colors.blue
+                                                    .withOpacity(0.2),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 4),
                                               ),
-                                              textAlign: TextAlign.center,
-                                              textDirection: TextDirection.rtl,
-                                            ),
-                                          ),
-                                          // Fixed Absence Column
-                                          const Expanded(
-                                            child: Text(
-                                              'إجمالي الغياب',
-                                              style: TextStyle(
-                                                color: Color(0xFF1976D2),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                              textAlign: TextAlign.center,
-                                              textDirection: TextDirection.rtl,
-                                            ),
-                                          ),
-                                          // Dynamic Components (excluding absence)
-                                          ...gradeComponents
-                                              .where(
-                                                  (c) => c != 'إجمالي الغياب')
-                                              .map((component) => Expanded(
-                                                    child: Text(
-                                                      component,
-                                                      style: const TextStyle(
-                                                        color:
-                                                            Color(0xFF1976D2),
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 14,
-                                                      ),
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      textDirection:
-                                                          TextDirection.rtl,
-                                                    ),
-                                                  )),
-                                        ],
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Text(
+                                      'الفصل الأول',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: currentSemester == 'الأول'
+                                            ? Colors.white
+                                            : Colors.grey[700],
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    const Divider(thickness: 1.2),
-                                    ListView.builder(
+                                  ),
+                                ),
+                              ),
+                              // الفصل الثاني
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(
+                                      () => currentSemester = 'الثاني'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    decoration: BoxDecoration(
+                                      gradient: currentSemester == 'الثاني'
+                                          ? const LinearGradient(
+                                              colors: [
+                                                Color(0xFF1976D2),
+                                                Color(0xFF64B5F6)
+                                              ],
+                                              begin: Alignment.centerRight,
+                                              end: Alignment.centerLeft,
+                                            )
+                                          : null,
+                                      color: currentSemester == 'الثاني'
+                                          ? null
+                                          : Colors.grey[200],
+                                      borderRadius:
+                                          const BorderRadius.horizontal(
+                                        left: Radius.circular(16),
+                                        right: Radius.zero,
+                                      ),
+                                      boxShadow: currentSemester == 'الثاني'
+                                          ? [
+                                              BoxShadow(
+                                                color: Colors.blue
+                                                    .withOpacity(0.2),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Text(
+                                      'الفصل الثاني',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: currentSemester == 'الثاني'
+                                            ? Colors.white
+                                            : Colors.grey[700],
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                      // جدول الطلاب (يختلف حسب نوع الدرجات)
+                        ),
+                        if (selectedSubject != null) ...[
+                        if (gradeType == 'فصلية')
+                          _buildTermGradesTable()
+                        else
+                          BlocBuilder<DailyGradeTitlesBloc, DailyGradeTitlesState>(
+                            bloc: _dailyGradeTitlesBloc,
+                            builder: (context, titlesState) {
+                              // معالجة حالة التحميل
+                              if (titlesState is DailyGradeTitlesLoading) {
+                                return const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(20.0),
+                                    child: Column(
+                                      children: [
+                                        CircularProgressIndicator(),
+                                        SizedBox(height: 10),
+                                        Text('جاري تحميل عناوين الدرجات...'),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              
+                              // معالجة حالة الخطأ
+                              if (titlesState is DailyGradeTitlesError) {
+                                return Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20.0),
+                                    child: Column(
+                                      children: [
+                                        const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'خطأ: ${titlesState.message}',
+                                          style: const TextStyle(color: Colors.red),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 10),
+                                        ElevatedButton(
+                                          onPressed: () => _loadGradeTitles(
+                                            (state as ProfileLoaded).classes,
+                                          ),
+                                          child: const Text('إعادة المحاولة'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              
+                              // معالجة حالة القائمة الفارغة
+                              if (titlesState is DailyGradeTitlesEmpty) {
+                                return Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20.0),
+                                    child: Column(
+                                      children: [
+                                        Icon(Icons.inbox_outlined, size: 60, color: Colors.grey[400]),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'لا توجد عناوين درجات محددة لهذه المادة',
+                                          style: TextStyle(color: Colors.grey[600]),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              
+                              final gradeTitles = titlesState is DailyGradeTitlesLoaded 
+                                  ? titlesState.titles 
+                                  : <DailyGradeTitle>[];
+                              
+                              print('📊 عدد عناوين الدرجات المحملة: ${gradeTitles.length}');
+                              
+                              return Column(
+                                children: [
+                                  const SizedBox(height: 12),
+                                  // الجدول بالكامل مع scroll أفقي موحد
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Column(
+                                      children: [
+                                        // رأس الجدول
+                                        Row(
+                                          children: [
+                                            // عمود اسم الطالب
+                                            Container(
+                                              width: 120,
+                                              height: 50,
+                                              alignment: Alignment.center,
+                                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                                              child: const Text(
+                                                'اسم الطالب',
+                                                style: TextStyle(
+                                                  color: Color(0xFF1976D2),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                            // أعمدة الدرجات
+                                            ...gradeTitles.map((title) {
+                                              return Container(
+                                                width: 100,
+                                                height: 50,
+                                                alignment: Alignment.center,
+                                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      title.displayTitle,
+                                                      style: const TextStyle(
+                                                        color: Color(0xFF1976D2),
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 13,
+                                                      ),
+                                                      textAlign: TextAlign.center,
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    if (title.maxGrade != null && title.maxGrade! > 0)
+                                                      Text(
+                                                        '(${title.maxGrade!.toStringAsFixed(title.maxGrade! % 1 == 0 ? 0 : 1)})',
+                                                        style: TextStyle(
+                                                          color: Colors.grey[600],
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ],
+                                        ),
+                                        const Divider(thickness: 1.2),
+                                        // صفوف الطلاب
+                                        BlocConsumer<ClassStudentsBloc, ClassStudentsState>(
+                                          bloc: _classStudentsBloc,
+                                          listener: (context, state) {
+                                            if (state is ClassStudentsLoaded) {
+                                              setState(() {
+                                                _serverStudents = state.students;
+                                              });
+                                              print('✅ تم تحديث قائمة الطلاب: ${state.students.length} طالب');
+                                            } else if (state is ClassStudentsError) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(state.message),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          builder: (context, state) {
+                                            if (state is ClassStudentsLoading) {
+                                              return const Center(
+                                                child: Padding(
+                                                  padding: EdgeInsets.all(20.0),
+                                                  child: CircularProgressIndicator(),
+                                                ),
+                                              );
+                                            } else if (state is ClassStudentsEmpty) {
+                                              return Center(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(20.0),
+                                                  child: Text(
+                                                    state.message,
+                                                    style: const TextStyle(
+                                                      fontSize: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                ),
+                                              );
+                                            } else if (state is ClassStudentsLoaded) {
+                                              // عرض صفوف الطلاب
+                                              return Column(
+                                                children: state.students.asMap().entries.map((entry) {
+                                                  final index = entry.key;
+                                                  final student = entry.value;
+                                                  return _buildStudentRow(student, gradeTitles, index);
+                                                }).toList(),
+                                              );
+                                            } else {
+                                    // Fallback للبيانات المحلية القديمة
+                                    return ListView.builder(
                                       shrinkWrap: true,
                                       physics:
                                           const NeverScrollableScrollPhysics(),
                                       itemCount:
-                                          (sectionStudents[selectedSection] ?? [])
+                                          (sectionStudents[selectedSection] ??
+                                                  [])
                                               .length,
                                       itemBuilder: (context, index) {
                                         final student =
-                                            (sectionStudents[selectedSection] ?? [])
-                                                [index];
-                                        // رقم غياب عشوائي
+                                            (sectionStudents[selectedSection] ??
+                                                [])[index];
                                         // Initialize student data if not already done
                                         if (student.length <= 1) {
-                                          // Only has name and absence
                                           for (var component
                                               in gradeComponents) {
                                             if (component != 'إجمالي الغياب' &&
@@ -825,9 +1163,7 @@ class _GradesScreenState extends State<GradesScreen> {
                                                   .map((component) {
                                                 return Expanded(
                                                   child: Container(
-                                                    margin: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 4),
+                                                    margin: const EdgeInsets.symmetric(horizontal: 4),
                                                     child: TextField(
                                                       controller:
                                                           TextEditingController(
@@ -920,78 +1256,84 @@ class _GradesScreenState extends State<GradesScreen> {
                                           ),
                                         );
                                       },
+                                    );
+                                            }
+                                          },
+                                        ),
+                                      ],
                                     ),
-                                    // Show save button only for second semester
-                                    if (currentSemester == 'الثاني')
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 16, vertical: 16),
-                                        child: SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton(
-                                            onPressed: _saveGrades,
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xFF1976D2),
-                                              foregroundColor: Colors.white,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      vertical: 16),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              elevation: 4,
+                                  ),
+                                  // Show save button only for second semester
+                                  if (currentSemester == 'الثاني')
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 16),
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton(
+                                          onPressed: _saveGrades,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFF1976D2),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 16),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
-                                            child: const Text(
-                                              'حفظ الدرجات',
-                                              style: TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                            elevation: 4,
+                                          ),
+                                          child: const Text(
+                                            'حفظ الدرجات',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
                                       ),
-                                  ],
-                                )
-                            ] else
-                              // رسالة عند عدم اختيار مادة
-                              SizedBox(
-                                height: 220,
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.grade_outlined,
-                                        size: 80,
-                                        color: Colors.grey.withOpacity(0.5),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'اختر المادة لعرض الطلاب',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.grey.withOpacity(0.7),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        textDirection: TextDirection.rtl,
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                ],
+                              );
+                            },
+                          )
+                      ] else
+                        // رسالة عند عدم اختيار مادة
+                        SizedBox(
+                          height: 220,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.grade_outlined,
+                                  size: 80,
+                                  color: Colors.grey.withOpacity(0.5),
                                 ),
-                              )
-                          ]),
-                    ),
-                  );
-                })));
-  }
-
-  @override
-  void dispose() {
-    _profileBloc.close();
-    super.dispose();
+                                const SizedBox(height: 16),
+                                Text(
+                                  'اختر المادة لعرض الطلاب',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey.withOpacity(0.7),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   // بناء زر نوع الدرجات

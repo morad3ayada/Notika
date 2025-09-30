@@ -15,6 +15,8 @@ import '../data/repositories/pdf_upload_repository.dart';
 import '../data/repositories/exam_export_repository.dart';
 import '../data/repositories/exam_schedule_repository.dart';
 import '../data/repositories/exam_questions_repository.dart';
+import '../data/repositories/class_students_repository.dart';
+import '../data/repositories/daily_grade_titles_repository.dart';
 import '../api/api_client.dart';
 import '../config/api_config.dart';
 import '../providers/user_provider.dart';
@@ -53,4 +55,10 @@ void setupDependencies() {
   
   // إضافة ExamQuestionsRepository
   sl.registerLazySingleton<ExamQuestionsRepository>(() => ExamQuestionsRepository());
+  
+  // إضافة ClassStudentsRepository
+  sl.registerLazySingleton<ClassStudentsRepository>(() => ClassStudentsRepository());
+  
+  // إضافة DailyGradeTitlesRepository
+  sl.registerLazySingleton<DailyGradeTitlesRepository>(() => DailyGradeTitlesRepository());
 }

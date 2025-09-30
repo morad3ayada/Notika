@@ -11,6 +11,7 @@ import '../data/repositories/quick_tests_repository.dart';
 import '../data/repositories/attendance_repository.dart';
 import '../data/repositories/chapter_unit_repository.dart';
 import '../data/repositories/schedule_repository.dart';
+import '../data/repositories/pdf_upload_repository.dart';
 import '../api/api_client.dart';
 import '../config/api_config.dart';
 import '../providers/user_provider.dart';
@@ -36,4 +37,8 @@ void setupDependencies() {
   sl.registerLazySingleton<AttendanceRepository>(() => AttendanceRepository());
   sl.registerLazySingleton<ScheduleRepository>(() => ScheduleRepository());
   sl.registerLazySingleton<ChapterUnitRepository>(() => ChapterUnitRepository(sl<ApiClient>()));
+  
+  // إضافة PdfUploadRepository للـ dependency injection
+  // عشان نقدر نستخدمه في الـ BLoC والشاشات
+  sl.registerLazySingleton<PdfUploadRepository>(() => PdfUploadRepository());
 }

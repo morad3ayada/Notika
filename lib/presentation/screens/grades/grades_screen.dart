@@ -10,10 +10,13 @@ import '../../../logic/blocs/daily_grade_titles/daily_grade_titles_barrel.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../data/models/class_students_model.dart';
 import '../../../data/models/daily_grade_titles_model.dart';
+import '../../../data/models/daily_grades_model.dart';
+import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/class_students_repository.dart';
 import '../../../data/repositories/daily_grade_titles_repository.dart';
+import '../../../data/repositories/daily_grades_repository.dart';
 import '../../../di/injector.dart';
-import '../../../data/repositories/profile_repository.dart';
+import '../../../utils/teacher_class_matcher.dart';
 
 class GradesScreen extends StatefulWidget {
   const GradesScreen({super.key});
@@ -35,8 +38,15 @@ class _GradesScreenState extends State<GradesScreen> {
 
   // قائمة الطلاب المجلوبة من السيرفر
   List<Student> _serverStudents = [];
-  // قائمة عناوين الدرجات من السيرفر
+
+  // قائمة عناوين الدرجات المجلوبة من السيرفر
   List<String> _serverGradeTitles = [];
+
+  // Map لحفظ الدرجات: studentId -> (gradeTitleId -> grade)
+  final Map<String, Map<String, TextEditingController>> _gradeControllers = {};
+
+  // متغير لحالة الحفظ
+  bool _isSaving = false;
 
   // القوائم الديناميكية تُشتق من بيانات السيرفر (TeacherClass)
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -118,11 +128,22 @@ class _GradesScreenState extends State<GradesScreen> {
           ),
           // حقول الدرجات من السيرفر - بدون scroll
           ...gradeTitles.map((gradeTitle) {
+            // الحصول على أو إنشاء controller للطالب والعنوان
+            if (!_gradeControllers.containsKey(student.id)) {
+              _gradeControllers[student.id!] = {};
+            }
+            if (!_gradeControllers[student.id]!.containsKey(gradeTitle.id)) {
+              _gradeControllers[student.id]![gradeTitle.id!] = TextEditingController();
+            }
+            
+            final controller = _gradeControllers[student.id]![gradeTitle.id]!;
+            
             return Container(
               width: 100,
               height: 60,
               margin: const EdgeInsets.symmetric(horizontal: 4),
               child: TextField(
+                controller: controller,
                 textAlign: TextAlign.center,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
@@ -157,12 +178,6 @@ class _GradesScreenState extends State<GradesScreen> {
                 style: const TextStyle(
                   fontSize: 12,
                 ),
-                onChanged: currentSemester == 'الثاني'
-                    ? (value) {
-                        // TODO: حفظ الدرجة للطالب والعنوان المحدد
-                        print('💾 حفظ درجة ${gradeTitle.displayTitle} للطالب ${student.displayName}: $value');
-                      }
-                    : null,
                 readOnly: currentSemester != 'الثاني',
               ),
             );
@@ -332,12 +347,19 @@ class _GradesScreenState extends State<GradesScreen> {
     _profileBloc = ProfileBloc(sl<ProfileRepository>())
       ..add(const FetchProfile());
     _classStudentsBloc = ClassStudentsBloc(sl<ClassStudentsRepository>());
-    _dailyGradeTitlesBloc =
-        DailyGradeTitlesBloc(sl<DailyGradeTitlesRepository>());
+    _dailyGradeTitlesBloc = DailyGradeTitlesBloc(sl<DailyGradeTitlesRepository>());
   }
 
   @override
   void dispose() {
+    // تنظيف controllers
+    for (final studentControllers in _gradeControllers.values) {
+      for (final controller in studentControllers.values) {
+        controller.dispose();
+      }
+    }
+    _gradeControllers.clear();
+    
     _profileBloc.close();
     _classStudentsBloc.close();
     _dailyGradeTitlesBloc.close();
@@ -1560,7 +1582,7 @@ class _GradesScreenState extends State<GradesScreen> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _saveGrades,
+              onPressed: _isSaving ? null : _saveGrades,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1976D2),
                 foregroundColor: Colors.white,
@@ -1570,13 +1592,22 @@ class _GradesScreenState extends State<GradesScreen> {
                 ),
                 elevation: 4,
               ),
-              child: const Text(
-                'حفظ الدرجات الفصلية',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      gradeType == 'يومية' ? 'حفظ الدرجات اليومية' : 'حفظ الدرجات الفصلية',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
           ),
         ),
@@ -1584,30 +1615,257 @@ class _GradesScreenState extends State<GradesScreen> {
     );
   }
 
-  void _saveGrades() {
-    // Here you can add logic to save the grades
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'تم حفظ ${gradeType == 'يومية' ? 'الدرجات' : 'الدرجات الفصلية'} بنجاح',
-          style: const TextStyle(fontSize: 16),
-          textAlign: TextAlign.center,
+  Future<void> _saveGrades() async {
+    // التحقق من نوع الدرجات
+    if (gradeType != 'يومية') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('حفظ الدرجات الفصلية غير مدعوم حالياً'),
+          backgroundColor: Colors.orange,
         ),
-        backgroundColor: const Color(0xFF43A047),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+      );
+      return;
+    }
+
+    // التحقق من وجود اختيارات
+    if (selectedSchool == null ||
+        selectedStage == null ||
+        selectedSection == null ||
+        selectedSubject == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يرجى اختيار المدرسة والمرحلة والشعبة والمادة'),
+          backgroundColor: Colors.red,
         ),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      ),
+      );
+      return;
+    }
+
+    // الحصول على TeacherClass
+    final profileState = _profileBloc.state;
+    if (profileState is! ProfileLoaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('خطأ: لم يتم تحميل بيانات المعلم'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // التحقق من وجود classes في البيانات
+    if (profileState.classes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا توجد فصول متاحة للمعلم في البيانات المحملة'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    print('🔍 البحث عن TeacherClass المطابق...');
+    print('   المدرسة المختارة: $selectedSchool');
+    print('   المرحلة المختارة: $selectedStage');
+    print('   الشعبة المختارة: $selectedSection');
+    print('   المادة المختارة: $selectedSubject');
+
+    // طباعة جميع الـ classes المتاحة للتشخيص
+    print('📚 عدد الـ classes المتاحة: ${profileState.classes.length}');
+    for (var i = 0; i < profileState.classes.length && i < 5; i++) {
+      final c = profileState.classes[i];
+      print('   Class $i:');
+      print('     schoolName: "${c.schoolName}"');
+      print('     levelName: "${c.levelName}"');
+      print('     className: "${c.className}"');
+      print('     subjectName: "${c.subjectName}"');
+      print('     levelId: ${c.levelId}');
+      print('     classId: ${c.classId}');
+      print('     subjectId: ${c.subjectId}');
+      print('     levelSubjectId: ${c.levelSubjectId}');
+    }
+
+    // طباعة المزيد من التفاصيل للفهم
+    if (profileState.classes.isNotEmpty) {
+      print('🔍 تحليل البيانات الخام لأول Class:');
+      // طباعة البيانات الخام من API إذا كانت متوفرة
+      // هذا يساعد في فهم ما إذا كانت البيانات تأتي صحيحة من API
+    }
+
+    // التحقق من وجود classes
+    if (profileState.classes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا توجد فصول متاحة للمعلم'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final matchingClass = TeacherClassMatcher.findMatchingTeacherClass(
+      profileState.classes,
+      selectedSchool,
+      selectedStage,
+      selectedSection,
+      selectedSubject,
     );
 
-    // Return to the previous screen after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        Navigator.pop(context);
+    print('🏫 TeacherClass المطابق:');
+    print('   schoolName: ${matchingClass?.schoolName}');
+    print('   levelName: ${matchingClass?.levelName}');
+    print('   className: ${matchingClass?.className}');
+    print('   subjectName: ${matchingClass?.subjectName}');
+    print('   levelId: ${matchingClass?.levelId}');
+    print('   classId: ${matchingClass?.classId}');
+    print('   subjectId: ${matchingClass?.subjectId}');
+    print('   levelSubjectId: ${matchingClass?.levelSubjectId}');
+
+    // التحقق من أن تم العثور على TeacherClass صالح
+    if (matchingClass == null ||
+        matchingClass.schoolName == null ||
+        matchingClass.levelName == null ||
+        matchingClass.className == null ||
+        matchingClass.subjectName == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'لم يتم العثور على فصل مطابق للاختيارات التالية:\n'
+            'المدرسة: $selectedSchool\n'
+            'المرحلة: $selectedStage\n'
+            'الشعبة: $selectedSection\n'
+            'المادة: $selectedSubject',
+          ),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      return;
+    }
+
+    if (matchingClass.levelId == null ||
+        matchingClass.classId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('خطأ: بيانات الفصل غير مكتملة (levelId أو classId)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // استخدام subjectId أو levelSubjectId كـ fallback
+    final subjectId = matchingClass.subjectId ?? matchingClass.levelSubjectId;
+    print('📚 subjectId المستخدم: $subjectId');
+    if (subjectId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('خطأ: بيانات الفصل غير مكتملة (subjectId)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // جمع الدرجات من controllers
+    final List<StudentDailyGrades> studentsDailyGrades = [];
+    
+    for (final studentId in _gradeControllers.keys) {
+      final studentGrades = _gradeControllers[studentId]!;
+      final List<DailyGrade> dailyGrades = [];
+
+      for (final gradeTitleId in studentGrades.keys) {
+        final controller = studentGrades[gradeTitleId]!;
+        final gradeText = controller.text.trim();
+        
+        if (gradeText.isNotEmpty) {
+          final grade = double.tryParse(gradeText) ?? 0.0;
+          if (grade > 0) {
+            dailyGrades.add(DailyGrade(
+              dailyGradeTitleId: gradeTitleId,
+              grade: grade,
+            ));
+          }
+        }
       }
+
+      if (dailyGrades.isNotEmpty) {
+        studentsDailyGrades.add(StudentDailyGrades(
+          studentId: studentId,
+          date: DateTime.now(),
+          dailyGrades: dailyGrades,
+        ));
+      }
+    }
+
+    if (studentsDailyGrades.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا توجد درجات لحفظها'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // إنشاء الطلب
+    final request = BulkDailyGradesRequest(
+      levelId: matchingClass.levelId!,
+      classId: matchingClass.classId!,
+      subjectId: subjectId,  // استخدام subjectId المُعدل
+      date: DateTime.now(),
+      studentsDailyGrades: studentsDailyGrades,
+    );
+
+    // إرسال الطلب
+    setState(() {
+      _isSaving = true;
     });
+
+    try {
+      final repository = sl<DailyGradesRepository>();
+      final response = await repository.updateBulkDailyGrades(request);
+
+      setState(() {
+        _isSaving = false;
+      });
+
+      if (response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              response.message,
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            backgroundColor: const Color(0xFF43A047),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isSaving = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

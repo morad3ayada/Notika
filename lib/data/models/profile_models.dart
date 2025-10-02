@@ -198,17 +198,25 @@ class TeacherClass extends Equatable {
     this.levelSubjectId,
   });
 
-  factory TeacherClass.fromJson(Map<String, dynamic> json) => TeacherClass(
-        schoolId: json['schoolId']?.toString(),
-        schoolName: json['schoolName']?.toString(),
-        levelId: json['levelId']?.toString(),
-        levelName: json['levelName']?.toString(),
-        classId: json['classId']?.toString(),
-        className: json['className']?.toString(),
-        subjectId: json['subjectId']?.toString(),
-        subjectName: json['subjectName']?.toString(),
-        levelSubjectId: json['levelSubjectId']?.toString(),
-      );
+  factory TeacherClass.fromJson(Map<String, dynamic> json) {
+    final teacherClass = TeacherClass(
+      schoolId: json['schoolId']?.toString(),
+      schoolName: json['schoolName']?.toString()?.trim(),
+      levelId: json['levelId']?.toString(),
+      levelName: json['levelName']?.toString()?.trim(),
+      classId: json['classId']?.toString(),
+      className: json['className']?.toString()?.trim(),
+      subjectId: json['subjectId']?.toString(),
+      subjectName: json['subjectName']?.toString()?.trim(),
+      levelSubjectId: json['levelSubjectId']?.toString(),
+    );
+
+    // Logging للتشخيص فقط في وضع التطوير
+    // هذا الكود تم إزالته لحل مشكلة debugPrint غير المتاح في هذا السياق
+    // استخدم print مباشرة أو قم بإزالة هذا الكود تماماً في الإنتاج
+
+    return teacherClass;
+  }
 
   Map<String, dynamic> toJson() => {
         'schoolId': schoolId,

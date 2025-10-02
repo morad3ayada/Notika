@@ -14,20 +14,20 @@ class TeacherClassMatcher {
     String? selectedSubject,
   ) {
     if (classes.isEmpty) {
-      debugPrint('❌ No teacher classes available');
+      print('❌ No teacher classes available');
       return null;
     }
 
-    debugPrint('🔍 Searching for matching TeacherClass:');
-    debugPrint('   School: $selectedSchool');
-    debugPrint('   Level: $selectedLevel');
-    debugPrint('   Section: $selectedSection');
-    debugPrint('   Subject: $selectedSubject');
+    print('🔍 Searching for matching TeacherClass:');
+    print('   School: $selectedSchool');
+    print('   Level: $selectedLevel');
+    print('   Section: $selectedSection');
+    print('   Subject: $selectedSubject');
 
     // Phase 1: Try exact match after normalization
     for (final teacherClass in classes) {
       if (_isExactMatch(teacherClass, selectedSchool, selectedLevel, selectedSection, selectedSubject)) {
-        debugPrint('✅ Found exact match: ${teacherClass.toString()}');
+        print('✅ Found exact match: ${teacherClass.toString()}');
         return teacherClass;
       }
     }
@@ -35,7 +35,7 @@ class TeacherClassMatcher {
     // Phase 2: Try partial match (especially for subjects)
     for (final teacherClass in classes) {
       if (_isPartialMatch(teacherClass, selectedSchool, selectedLevel, selectedSection, selectedSubject)) {
-        debugPrint('✅ Found partial match: ${teacherClass.toString()}');
+        print('✅ Found partial match: ${teacherClass.toString()}');
         return teacherClass;
       }
     }
@@ -43,12 +43,12 @@ class TeacherClassMatcher {
     // Phase 3: Try match without spaces as last resort
     for (final teacherClass in classes) {
       if (_isMatchWithoutSpaces(teacherClass, selectedSchool, selectedLevel, selectedSection, selectedSubject)) {
-        debugPrint('✅ Found match without spaces: ${teacherClass.toString()}');
+        print('✅ Found match without spaces: ${teacherClass.toString()}');
         return teacherClass;
       }
     }
 
-    debugPrint('❌ No matching TeacherClass found');
+    print('❌ No matching TeacherClass found');
     return null;
   }
 

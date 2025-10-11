@@ -160,7 +160,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       
                       // عنوان الصفحة
                       Text(
-                        'مرحبًا بك في نظام نوتيكا لادارة الموسسات التعليمية',
+                        'مرحبًا بك في نظام نوتيكا لادارة المؤسسات التعليمية',
                         style: TextStyle(
                           color: Theme.of(context).textTheme.headlineMedium?.color ?? const Color(0xFF233A5A),
                           fontWeight: FontWeight.w300,
@@ -178,16 +178,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         textAlign: TextAlign.center,
                       ),
                         const SizedBox(height: 8),
-                        Text(
-                          'مؤسسة الانامل الواعدة الاهلية',
-                          style: TextStyle(
-                            color: Theme.of(context).textTheme.headlineMedium?.color ?? const Color(0xFF233A5A),
-                            fontWeight: FontWeight.w400,
-                            fontSize: 18,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 32),                      
+                       const SizedBox(height: 32),                     
                       // Connection status indicator
                       if (!_isConnected)
                         Container(
@@ -371,7 +362,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       
                       // معلومات إضافية
                          Text(
-                        'نوتيكا لادارة الموسسات التعليمية ',
+                        'نوتيكا لادارة المؤسسات التعليمية ',
                         style: TextStyle(
                           color: Theme.of(context).textTheme.bodySmall?.color,
                           fontSize: 14,

@@ -1,26 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../home/home_screen.dart';
 import 'dart:ui';
+import '../../../logic/blocs/notifications/notifications_barrel.dart';
+import '../../../data/repositories/notifications_repository.dart';
+import '../../../di/injector.dart';
 
-class AdminNotificationsScreen extends StatelessWidget {
+class AdminNotificationsScreen extends StatefulWidget {
   const AdminNotificationsScreen({super.key});
 
   @override
+  State<AdminNotificationsScreen> createState() => _AdminNotificationsScreenState();
+}
+
+class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
+  late final NotificationsBloc _notificationsBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationsBloc = NotificationsBloc(sl<NotificationsRepository>())
+      ..add(const LoadNotificationsEvent());
+  }
+
+  @override
+  void dispose() {
+    _notificationsBloc.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final List<Map<String, String>> notifications = [
-      {
-        'title': 'تنبيه هام',
-        'body': 'يرجى حضور الاجتماع الإداري يوم الأحد القادم الساعة 10 صباحاً.'
-      },
-      {
-        'title': 'تحديث بيانات',
-        'body': 'يرجى تحديث بياناتك الشخصية في أقرب وقت.'
-      },
-      {
-        'title': 'إعلان',
-        'body': 'تم إضافة مواد جديدة للمرحلة الابتدائية.'
-      },
-    ];
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -42,67 +52,243 @@ class AdminNotificationsScreen extends StatelessWidget {
             size: Size.infinite,
             painter: _GridPainter(),
           ),
-          ListView.separated(
-            padding: EdgeInsetsDirectional.only(
-              top: MediaQuery.of(context).padding.top + 24,
-              start: 18, // في RTL = يمين
-              end: 18,   // في RTL = يسار
-              bottom: 32,
-            ),
-            itemCount: notifications.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 18),
-            itemBuilder: (context, index) {
-              final notif = notifications[index];
-              return Container(
-                alignment: Alignment.centerRight,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                  border: Border.all(color: Color(0xFF1976D2), width: 1.1),
-                ),
-                padding: const EdgeInsetsDirectional.only(
-                  start: 18,  // RTL: يمين
-                  end: 10,    // RTL: يسار أقل
-                  top: 18,
-                  bottom: 18,
-                ),
-                child: Align(
-                  alignment: AlignmentDirectional.centerStart, // RTL: يبدأ من اليمين
+          BlocBuilder<NotificationsBloc, NotificationsState>(
+            bloc: _notificationsBloc,
+            builder: (context, state) {
+              // حالة التحميل
+              if (state is NotificationsLoading) {
+                return Center(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, // RTL: إلى اليمين
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
                       Text(
-                        notif['title']!,
+                        'جاري تحميل الإشعارات...',
                         style: TextStyle(
                           color: Theme.of(context).brightness == Brightness.dark
                               ? Colors.white
-                              : Color(0xFF1976D2),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                              : const Color(0xFF233A5A),
+                          fontSize: 16,
                         ),
-                        textAlign: TextAlign.start,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        notif['body']!,
-                        style: TextStyle(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white
-                              : Color(0xFF233A5A),
-                          fontSize: 15.5,
-                        ),
-                        textAlign: TextAlign.start,
                       ),
                     ],
                   ),
-                ),
+                );
+              }
+              
+              // حالة الخطأ
+              if (state is NotificationsError) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        state.message,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => _notificationsBloc.add(const RefreshNotificationsEvent()),
+                        child: const Text('إعادة المحاولة'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
+              // حالة القائمة الفارغة
+              if (state is NotificationsEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.notifications_off, size: 60, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        state.message,
+                        style: TextStyle(color: Colors.grey[600]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
+              // حالة النجاح - عرض الإشعارات
+              if (state is NotificationsLoaded) {
+                final notifications = state.notifications;
+                
+                return ListView.separated(
+                  padding: EdgeInsetsDirectional.only(
+                    top: MediaQuery.of(context).padding.top + 24,
+                    start: 18,
+                    end: 18,
+                    bottom: 32,
+                  ),
+                  itemCount: notifications.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 18),
+                  itemBuilder: (context, index) {
+                    final notif = notifications[index];
+                    return Container(
+                      alignment: Alignment.centerRight,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                        border: Border.all(color: const Color(0xFF1976D2), width: 1.1),
+                      ),
+                      padding: const EdgeInsetsDirectional.only(
+                        start: 18,
+                        end: 10,
+                        top: 18,
+                        bottom: 18,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // العنوان
+                          Text(
+                            notif.title,
+                            style: TextStyle(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : const Color(0xFF1976D2),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                            textAlign: TextAlign.start,
+                          ),
+                          const SizedBox(height: 8),
+                          
+                          // المحتوى
+                          Text(
+                            notif.body,
+                            style: TextStyle(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : const Color(0xFF233A5A),
+                              fontSize: 15.5,
+                            ),
+                            textAlign: TextAlign.start,
+                          ),
+                          
+                          // الصورة
+                          if (notif.imageUrl != null && notif.imageUrl!.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                'https://nouraleelemorg.runasp.net${notif.imageUrl}',
+                                width: double.infinity,
+                                height: 200,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[300],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                          
+                          // رابط الفيديو
+                          if (notif.videoUrl != null && notif.videoUrl!.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            GestureDetector(
+                              onTap: () {
+                                // يمكن فتح الرابط في المتصفح
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('رابط الفيديو: ${notif.videoUrl}'),
+                                    action: SnackBarAction(
+                                      label: 'نسخ',
+                                      onPressed: () {
+                                        // نسخ الرابط للحافظة
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1976D2).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF1976D2)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.play_circle_outline, color: Color(0xFF1976D2), size: 24),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        notif.videoUrl!,
+                                        style: const TextStyle(
+                                          color: Color(0xFF1976D2),
+                                          fontSize: 14,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          
+                          // التاريخ والمرسل والنوع
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              if (notif.createdAt != null)
+                                _buildInfoChip(
+                                  Icons.access_time,
+                                  _formatDate(notif.createdAt!),
+                                  Colors.blue,
+                                ),
+                              if (notif.senderName != null && notif.senderName!.isNotEmpty)
+                                _buildInfoChip(
+                                  Icons.person,
+                                  notif.senderName!,
+                                  Colors.green,
+                                ),
+                              if (notif.type != null && notif.type!.isNotEmpty)
+                                _buildInfoChip(
+                                  Icons.label,
+                                  notif.type!,
+                                  Colors.orange,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              }
+              
+              // حالة افتراضية
+              return const Center(
+                child: Text('لا توجد بيانات'),
               );
             },
           ),
@@ -110,6 +296,53 @@ class AdminNotificationsScreen extends StatelessWidget {
       ),
       // No bottomNavigationBar
     ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) {
+          return 'الآن';
+        }
+        return 'منذ ${difference.inMinutes} دقيقة';
+      }
+      return 'منذ ${difference.inHours} ساعة';
+    } else if (difference.inDays == 1) {
+      return 'أمس';
+    } else if (difference.inDays < 7) {
+      return 'منذ ${difference.inDays} أيام';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  Widget _buildInfoChip(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

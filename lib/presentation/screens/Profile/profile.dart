@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../providers/user_provider.dart';
 import '../../../data/services/auth_service.dart';
 import '../auth/sign_in.dart';
@@ -7,6 +8,11 @@ import '../../../data/models/profile_models.dart';
 import '../../../data/services/profile_service.dart';
 import '../../../data/repositories/daily_grade_titles_repository.dart';
 import '../../../di/injector.dart';
+import '../../../logic/blocs/auth/auth_bloc.dart';
+import '../../../logic/blocs/auth/auth_event.dart';
+import '../../../logic/blocs/teacher_class_settings/teacher_class_settings_barrel.dart';
+import '../../../data/repositories/teacher_class_settings_repository.dart';
+import '../../../data/models/teacher_class_setting_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   // Accept legacy parameter to keep backward compatibility; it's unused now
@@ -21,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ProfileResult? _profileResult;
   bool _loading = true;
   String? _error;
+  late final TeacherClassSettingsBloc _settingsBloc;
   // Expanded palette to minimize repetition
   final List<Color> _palette = const [
     Color(0xFF1976D2), // Blue
@@ -103,6 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     Future<void> _saveChanges() async {
       if (components.isEmpty) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('يرجى إضافة مكون واحد على الأقل'),
@@ -116,6 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (teacherClass.levelId == null || 
           teacherClass.classId == null || 
           teacherClass.levelSubjectId == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('خطأ: بيانات الفصل غير مكتملة'),
@@ -125,6 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
+      if (!mounted) return;
       setState(() {
         _isSaving = true;
       });
@@ -150,11 +160,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
         }
 
+        if (!mounted) return;
         setState(() {
           _isSaving = false;
         });
 
         if (successCount == components.length) {
+          if (!mounted) return;
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -163,6 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           );
         } else {
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('تم حفظ $successCount من ${components.length} مكون'),
@@ -171,6 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
       } catch (e) {
+        if (!mounted) return;
         setState(() {
           _isSaving = false;
         });
@@ -401,11 +415,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize TeacherClassSettings BLoC
+    _settingsBloc = TeacherClassSettingsBloc(sl<TeacherClassSettingsRepository>());
+    
     // Fetch profile data on open using stored token
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final token = context.read<UserProvider>().token;
         if (token == null || token.isEmpty) {
+          if (!mounted) return;
           setState(() {
             _loading = false;
             _error = 'لم يتم العثور على رمز الدخول';
@@ -413,17 +432,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return;
         }
         final result = await ProfileService().getProfile(token);
+        if (!mounted) return;
         setState(() {
           _profileResult = result;
           _loading = false;
         });
+        
+        // جلب صلاحيات الطلاب بعد جلب البروفايل
+        _settingsBloc.add(const LoadTeacherClassSettingsEvent());
       } catch (e) {
+        if (!mounted) return;
         setState(() {
           _error = e.toString();
           _loading = false;
         });
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _settingsBloc.close();
+    super.dispose();
   }
 
   Widget _buildInfoRow(String label, String value, {bool isTotal = false}) {
@@ -883,54 +913,188 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           textDirection: TextDirection.rtl,
                         ),
                         const SizedBox(height: 12),
-                        ...?_profileResult?.classes.asMap().entries.map((entry) {
-                          final idx = entry.key;
-                          final cls = entry.value;
-                          final total = _profileResult?.classes.length ?? 0;
-                          final color = _colorFor(idx, total);
-                          final name = '${cls.levelName ?? ''} ${cls.className ?? ''}'.trim();
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    name,
-                                    style: TextStyle(
-                                      color: color,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'Tajawal',
-                                    ),
-                                    textDirection: TextDirection.rtl,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                        BlocConsumer<TeacherClassSettingsBloc, TeacherClassSettingsState>(
+                          bloc: _settingsBloc,
+                          listener: (context, state) {
+                            if (state is TeacherClassSettingsUpdateSuccess) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(state.message),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 2),
                                 ),
-                                Row(
-                                  children: [
-                                    Text(
-                                      '${true ? 'مفعل' : 'معطل'}',
-                                      style: TextStyle(
-                                        color: color,
-                                        fontSize: 14,
-                                        fontFamily: 'Tajawal',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Switch(
-                                      value: true,
-                                      onChanged: (value) {},
-                                      activeColor: color,
-                                      activeTrackColor: color.withOpacity(0.5),
-                                    ),
-                                  ],
+                              );
+                            } else if (state is TeacherClassSettingsError) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(state.message),
+                                  backgroundColor: Colors.red,
+                                  duration: const Duration(seconds: 3),
                                 ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                              );
+                            }
+                          },
+                          builder: (context, state) {
+                            // حالة التحميل
+                            if (state is TeacherClassSettingsLoading) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16.0),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            
+                            // حالة الخطأ أو فارغة - نستخدم البيانات المحلية
+                            if (state is TeacherClassSettingsError || 
+                                state is TeacherClassSettingsEmpty ||
+                                state is TeacherClassSettingsInitial) {
+                              // Fallback: عرض الفصول من البروفايل بدون صلاحيات
+                              return Column(
+                                children: _profileResult?.classes.asMap().entries.map((entry) {
+                                  final idx = entry.key;
+                                  final cls = entry.value;
+                                  final total = _profileResult?.classes.length ?? 0;
+                                  final color = _colorFor(idx, total);
+                                  final name = '${cls.levelName ?? ''} ${cls.className ?? ''}'.trim();
+                                  
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            name,
+                                            style: TextStyle(
+                                              color: color,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              fontFamily: 'Tajawal',
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'غير متاح',
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 14,
+                                                fontFamily: 'Tajawal',
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Switch(
+                                              value: false,
+                                              onChanged: null, // معطل
+                                              activeColor: color,
+                                              activeTrackColor: color.withOpacity(0.5),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList() ?? [],
+                              );
+                            }
+                            
+                            // حالة النجاح - عرض الصلاحيات من السيرفر
+                            if (state is TeacherClassSettingsLoaded || 
+                                state is TeacherClassSettingsUpdating) {
+                              final settings = state is TeacherClassSettingsLoaded
+                                  ? state.settings
+                                  : (state as TeacherClassSettingsUpdating).currentSettings;
+                              
+                              // دمج البيانات من البروفايل والإعدادات
+                              return Column(
+                                children: _profileResult?.classes.asMap().entries.map((entry) {
+                                  final idx = entry.key;
+                                  final cls = entry.value;
+                                  final total = _profileResult?.classes.length ?? 0;
+                                  final color = _colorFor(idx, total);
+                                  final name = '${cls.levelName ?? ''} ${cls.className ?? ''}'.trim();
+                                  
+                                  // البحث عن الإعداد المقابل
+                                  final setting = settings.firstWhere(
+                                    (s) => s.levelId == cls.levelId && s.classId == cls.classId,
+                                    orElse: () => TeacherClassSetting(
+                                      classId: cls.classId ?? '',
+                                      levelId: cls.levelId ?? '',
+                                      studentChatPermission: false,
+                                    ),
+                                  );
+                                  
+                                  final isUpdating = state is TeacherClassSettingsUpdating;
+                                  
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            name,
+                                            style: TextStyle(
+                                              color: color,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              fontFamily: 'Tajawal',
+                                            ),
+                                            textDirection: TextDirection.rtl,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Row(
+                                          children: [
+                                            if (isUpdating)
+                                              const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              )
+                                            else
+                                              Text(
+                                                setting.studentChatPermission ? 'مفعل' : 'معطل',
+                                                style: TextStyle(
+                                                  color: color,
+                                                  fontSize: 14,
+                                                  fontFamily: 'Tajawal',
+                                                ),
+                                              ),
+                                            const SizedBox(width: 8),
+                                            Switch(
+                                              value: setting.studentChatPermission,
+                                              onChanged: isUpdating ? null : (value) {
+                                                _settingsBloc.add(
+                                                  ToggleStudentChatPermissionEvent(
+                                                    classId: setting.classId,
+                                                    levelId: setting.levelId,
+                                                    newValue: value,
+                                                  ),
+                                                );
+                                              },
+                                              activeColor: color,
+                                              activeTrackColor: color.withOpacity(0.5),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList() ?? [],
+                              );
+                            }
+                            
+                            // حالة افتراضية
+                            return const SizedBox.shrink();
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -1305,11 +1469,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 );
 
                                 try {
+                                  // محاولة تسجيل الخروج من السيرفر
                                   await AuthService().serverLogout(requireUserAction: true);
-                                } catch (_) {}
+                                } catch (_) {
+                                  // تجاهل أخطاء السيرفر والمتابعة
+                                }
 
+                                // مسح البيانات من Provider
                                 await context.read<UserProvider>().logout();
-                                await AuthService.logout();
+                                
+                                // إرسال حدث تسجيل الخروج إلى AuthBloc
+                                if (!mounted) return;
+                                context.read<AuthBloc>().add(const LogoutRequested());
 
                                 if (mounted) {
                                   Navigator.of(context).pop(); // يقفل الـ progress dialog

@@ -9,6 +9,8 @@ import 'data/models/grade_components.dart';
 import 'providers/user_provider.dart';
 import 'di/injector.dart';
 import 'logic/blocs/auth/auth_bloc.dart';
+import 'logic/blocs/auth/auth_event.dart';
+import 'logic/blocs/auth/auth_state.dart';
 import 'logic/blocs/profile/profile_bloc.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/profile_repository.dart';
@@ -17,6 +19,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ar', null);
   setupDependencies();
+
+  // Check if user is already logged in
+  final authBloc = sl<AuthBloc>();
+  authBloc.add(const CheckSavedAuth());
+
   runApp(MyApp());
 }
 
@@ -35,11 +42,11 @@ class MyApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider<AuthBloc>(
-            create: (_) => AuthBloc(sl<AuthRepository>()),
+          BlocProvider<AuthBloc>.value(
+            value: sl<AuthBloc>(),
           ),
-          BlocProvider<ProfileBloc>(
-            create: (_) => ProfileBloc(sl<ProfileRepository>()),
+          BlocProvider<ProfileBloc>.value(
+            value: sl<ProfileBloc>(),
           ),
         ],
         child: ValueListenableBuilder<ThemeMode>(
@@ -104,7 +111,17 @@ class MyApp extends StatelessWidget {
             ), dialogTheme: DialogThemeData(backgroundColor: Color(0xFF1A1F35)),
           ),
           themeMode: currentMode,
-          home: SignInScreen(),
+          home: BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, state) {
+              if (state is AuthSuccess) {
+                // User is logged in, go to main screen
+                return MainScreen();
+              } else {
+                // User is not logged in, show sign in screen
+                return SignInScreen();
+              }
+            },
+          ),
           routes: {
             '/home': (context) => MainScreen(),
           },

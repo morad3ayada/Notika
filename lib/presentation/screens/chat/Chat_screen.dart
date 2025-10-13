@@ -382,7 +382,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         Positioned(
-          right: -18,
+          left: 16, // تغيير من right: -18 إلى left: 16 لتجنب الخروج عن الحدود
           top: 12,
           child: Container(
             width: 54,
@@ -488,7 +488,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         Positioned(
-          right: -18,
+          left: 16, // تغيير من right: -18 إلى left: 16 لتجنب الخروج عن الحدود
           top: 12,
           child: Container(
             width: 54,

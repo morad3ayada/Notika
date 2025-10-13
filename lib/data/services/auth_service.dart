@@ -54,12 +54,13 @@ class AuthService {
 
     final userData = {
       'token': response.token,
+      'userType': response.userType,
       'profile': response.profile.toJson(),
       if (response.organization != null) 'organization': response.organization!.toJson(),
     };
 
     await prefs.setString(userDataKey, jsonEncode(userData));
-    debugPrint('Auth data saved successfully');
+    debugPrint('Auth data saved successfully - Token: ${response.token.substring(0, 10)}..., UserType: ${response.userType}');
   }
 
   static Future<String?> getToken() async {

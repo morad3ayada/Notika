@@ -169,7 +169,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         textAlign: TextAlign.center,
                       ),
                       Text(
-                        'تطبيق للمعلمين',
+                        'تطبيق الأساتذة',
                         style: TextStyle(
                           color: Theme.of(context).textTheme.headlineMedium?.color ?? const Color(0xFF233A5A),
                           fontWeight: FontWeight.bold,

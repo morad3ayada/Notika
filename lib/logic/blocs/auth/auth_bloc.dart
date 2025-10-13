@@ -31,22 +31,51 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   Future<void> _onCheckSavedAuth(CheckSavedAuth event, Emitter<AuthState> emit) async {
     try {
+      debugPrint('🔍 Checking saved auth...');
+      
       // Check if user is already logged in with saved credentials
       final isLoggedIn = await auth_service.AuthService.isLoggedIn();
+      debugPrint('📱 isLoggedIn: $isLoggedIn');
+      
       if (isLoggedIn) {
         final savedAuthData = await auth_service.AuthService.getSavedAuthData();
+        debugPrint('📦 Saved auth data exists: ${savedAuthData != null}');
+        
         if (savedAuthData != null) {
+          debugPrint('📋 Saved data keys: ${savedAuthData.keys.toList()}');
+          
+          // Validate required fields before parsing
+          if (!savedAuthData.containsKey('token')) {
+            debugPrint('❌ Missing token field in saved data');
+            await auth_service.AuthService.clearAuthData();
+            emit(AuthInitial());
+            return;
+          }
+          
+          if (!savedAuthData.containsKey('userType')) {
+            debugPrint('⚠️ Missing userType field in saved data - data structure may be outdated');
+            await auth_service.AuthService.clearAuthData();
+            emit(AuthInitial());
+            return;
+          }
+          
           // Create a LoginResponse from saved data
           final response = LoginResponse.fromJson(savedAuthData);
+          debugPrint('✅ Auth restored successfully for user: ${response.profile.userName}');
           emit(AuthSuccess(response));
         } else {
+          debugPrint('⚠️ No saved auth data found');
           emit(AuthInitial());
         }
       } else {
+        debugPrint('⚠️ User not logged in');
         emit(AuthInitial());
       }
-    } catch (e) {
-      debugPrint('Error checking saved auth: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error checking saved auth: $e');
+      debugPrint('Stack trace: $stackTrace');
+      // Clear corrupted data to prevent future errors
+      await auth_service.AuthService.clearAuthData();
       emit(AuthInitial());
     }
   }

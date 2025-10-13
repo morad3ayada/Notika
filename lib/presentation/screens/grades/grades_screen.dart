@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:notika_teacher/data/models/grade_components.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
 import '../../../logic/blocs/class_students/class_students_barrel.dart';
+
 import '../../../logic/blocs/daily_grade_titles/daily_grade_titles_barrel.dart';
+import '../../../logic/blocs/daily_grades/daily_grades_barrel.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../data/models/class_students_model.dart';
 import '../../../data/models/daily_grade_titles_model.dart';
@@ -32,9 +35,11 @@ class _GradesScreenState extends State<GradesScreen> {
   String? selectedSubject;
   String currentSemester = 'الثاني';
   String gradeType = 'يومية'; // 'يومية' or 'فصلية'
+  DateTime selectedDate = DateTime.now();
   late final ProfileBloc _profileBloc;
   late final ClassStudentsBloc _classStudentsBloc;
   late final DailyGradeTitlesBloc _dailyGradeTitlesBloc;
+  late final DailyGradesBloc _dailyGradesBloc;
 
   // قائمة الطلاب المجلوبة من السيرفر
   List<Student> _serverStudents = [];
@@ -44,6 +49,19 @@ class _GradesScreenState extends State<GradesScreen> {
 
   // Map لحفظ الدرجات: studentId -> (gradeTitleId -> grade)
   final Map<String, Map<String, TextEditingController>> _gradeControllers = {};
+
+  // Map لحفظ عدد مرات الغياب: studentId -> absenceTimes
+  final Map<String, int> _absenceTimes = {};
+
+  // قوائم الكويزات والاسيمنتات من السيرفر
+  List<QuizGrade> _allQuizzes = [];
+  List<AssignmentGrade> _allAssignments = [];
+  
+  // Map لحفظ درجات الكويزات: studentId -> List<QuizGrade>
+  final Map<String, List<QuizGrade>> _studentQuizzes = {};
+  
+  // Map لحفظ درجات الاسيمنتات: studentId -> List<AssignmentGrade>
+  final Map<String, List<AssignmentGrade>> _studentAssignments = {};
 
   // متغير لحالة الحفظ
   bool _isSaving = false;
@@ -95,6 +113,13 @@ class _GradesScreenState extends State<GradesScreen> {
       Student student, List<DailyGradeTitle> gradeTitles, int index) {
     print('🎓 عرض الطالب: ${student.displayName} (ID: ${student.id})');
 
+    // الحصول على عدد مرات الغياب
+    final absenceTimes = _absenceTimes[student.id] ?? 0;
+    
+    // الحصول على كويزات واسيمنتات الطالب
+    final studentQuizzes = _studentQuizzes[student.id] ?? [];
+    final studentAssignments = _studentAssignments[student.id] ?? [];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
       child: Row(
@@ -126,6 +151,35 @@ class _GradesScreenState extends State<GradesScreen> {
               ),
             ),
           ),
+          
+          // عمود عدد مرات الغياب
+          Container(
+            width: 80,
+            height: 60,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: absenceTimes > 0 
+                  ? Colors.red.withOpacity(0.1)
+                  : Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: absenceTimes > 0 
+                    ? Colors.red.withOpacity(0.3)
+                    : Colors.green.withOpacity(0.3),
+              ),
+            ),
+            child: Text(
+              absenceTimes.toString(),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: absenceTimes > 0 ? Colors.red : Colors.green,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          
           // حقول الدرجات من السيرفر - بدون scroll
           ...gradeTitles.map((gradeTitle) {
             // الحصول على أو إنشاء controller للطالب والعنوان
@@ -182,12 +236,76 @@ class _GradesScreenState extends State<GradesScreen> {
               ),
             );
           }).toList(),
+          
+          // أعمدة الكويزات
+          ..._allQuizzes.map((quiz) {
+            // البحث عن درجة الطالب في هذا الكويز
+            final studentQuiz = studentQuizzes.firstWhere(
+              (q) => q.title == quiz.title,
+              orElse: () => QuizGrade(title: quiz.title, grade: 0),
+            );
+            
+            return Container(
+              width: 100,
+              height: 60,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.purple.withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                studentQuiz.grade > 0 ? studentQuiz.grade.toStringAsFixed(0) : '-',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.purple,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }).toList(),
+          
+          // أعمدة الاسيمنتات
+          ..._allAssignments.map((assignment) {
+            // البحث عن درجة الطالب في هذا الاسيمنت
+            final studentAssignment = studentAssignments.firstWhere(
+              (a) => a.title == assignment.title,
+              orElse: () => AssignmentGrade(title: assignment.title, grade: 0),
+            );
+            
+            return Container(
+              width: 100,
+              height: 60,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                studentAssignment.grade > 0 ? studentAssignment.grade.toStringAsFixed(0) : '-',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }).toList(),
         ],
       ),
     );
   }
 
-  /// دالة جلب عناوين الدرجات عند اختيار المادة
+  /// دالة جلب عناوين الدرجات والدرجات تلقائياً عند اختيار المادة
   void _loadGradeTitles(List<TeacherClass> classes) {
     if (selectedSchool == null ||
         selectedStage == null ||
@@ -238,10 +356,22 @@ class _GradesScreenState extends State<GradesScreen> {
       print('📊 LevelId: ${matchingClass.levelId}');
       print('📊 ClassId: ${matchingClass.classId}');
 
+      // جلب عناوين الدرجات
       _dailyGradeTitlesBloc.add(LoadDailyGradeTitlesEvent(
         levelSubjectId: matchingClass.levelSubjectId!,
         levelId: matchingClass.levelId!,
         classId: matchingClass.classId!,
+      ));
+      
+      // جلب الدرجات تلقائياً لليوم الحالي
+      final formattedDate = '${selectedDate.day}-${selectedDate.month}-${selectedDate.year}';
+      print('🔄 جلب الدرجات تلقائياً لليوم: $formattedDate');
+      
+      _dailyGradesBloc.add(LoadClassStudentsGradesEvent(
+        subjectId: matchingClass.levelSubjectId!,
+        levelId: matchingClass.levelId!,
+        classId: matchingClass.classId!,
+        date: formattedDate,
       ));
     } else {
       print('❌ لم يتم العثور على معرفات المرحلة والفصل والمادة');
@@ -348,6 +478,7 @@ class _GradesScreenState extends State<GradesScreen> {
       ..add(const FetchProfile());
     _classStudentsBloc = ClassStudentsBloc(sl<ClassStudentsRepository>());
     _dailyGradeTitlesBloc = DailyGradeTitlesBloc(sl<DailyGradeTitlesRepository>());
+    _dailyGradesBloc = DailyGradesBloc(sl<DailyGradesRepository>());
   }
 
   @override
@@ -363,6 +494,7 @@ class _GradesScreenState extends State<GradesScreen> {
     _profileBloc.close();
     _classStudentsBloc.close();
     _dailyGradeTitlesBloc.close();
+    _dailyGradesBloc.close();
     super.dispose();
   }
 
@@ -399,6 +531,115 @@ class _GradesScreenState extends State<GradesScreen> {
                 _serverGradeTitles = [];
               });
               print('📭 لا توجد عناوين درجات محددة');
+            }
+          },
+        ),
+        // مستمع للدرجات
+        BlocListener<DailyGradesBloc, DailyGradesState>(
+          bloc: _dailyGradesBloc,
+          listener: (context, state) {
+            if (state is DailyGradesLoaded) {
+              print('✅ تم جلب درجات ${state.studentGrades.length} طالب من السيرفر');
+              
+              // جمع جميع الكويزات والاسيمنتات المتوفرة
+              final allQuizzesSet = <String, QuizGrade>{};
+              final allAssignmentsSet = <String, AssignmentGrade>{};
+              
+              print('🔍 بدء معالجة درجات ${state.studentGrades.length} طالب');
+              
+              // تحديث الـ controllers بالدرجات من السيرفر
+              for (final studentGrade in state.studentGrades) {
+                final studentId = studentGrade.studentId;
+                
+                print('👤 معالجة الطالب: $studentId');
+                print('   - الكويزات: ${studentGrade.quizzes.length}');
+                print('   - الاسيمنتات: ${studentGrade.assignments.length}');
+                
+                // حفظ عدد مرات الغياب
+                if (studentGrade.absenceTimes != null) {
+                  _absenceTimes[studentId] = studentGrade.absenceTimes!;
+                  print('   - absenceTimes: ${studentGrade.absenceTimes}');
+                }
+                
+                // حفظ الكويزات
+                _studentQuizzes[studentId] = studentGrade.quizzes;
+                for (final quiz in studentGrade.quizzes) {
+                  allQuizzesSet[quiz.title] = quiz;
+                  print('   - كويز: ${quiz.title} = ${quiz.grade}/${quiz.maxGrade}');
+                }
+                
+                // حفظ الاسيمنتات
+                _studentAssignments[studentId] = studentGrade.assignments;
+                for (final assignment in studentGrade.assignments) {
+                  allAssignmentsSet[assignment.title] = assignment;
+                  print('   - اسيمنت: ${assignment.title} = ${assignment.grade}/${assignment.maxGrade}');
+                }
+                
+                // التأكد من وجود map للطالب
+                if (!_gradeControllers.containsKey(studentId)) {
+                  _gradeControllers[studentId] = {};
+                }
+                
+                // تحديث كل درجة
+                for (final grade in studentGrade.dailyGrades) {
+                  final titleId = grade.dailyGradeTitleId;
+                  
+                  if (!_gradeControllers[studentId]!.containsKey(titleId)) {
+                    _gradeControllers[studentId]![titleId] = TextEditingController();
+                  }
+                  
+                  // تحديث القيمة
+                  _gradeControllers[studentId]![titleId]!.text = 
+                      grade.grade.toInt().toString();
+                }
+              }
+              
+              setState(() {
+                // حفظ قوائم الكويزات والاسيمنتات
+                _allQuizzes = allQuizzesSet.values.toList();
+                _allAssignments = allAssignmentsSet.values.toList();
+                
+                print('✅ إجمالي الكويزات المختلفة: ${_allQuizzes.length}');
+                for (final quiz in _allQuizzes) {
+                  print('   📝 ${quiz.title}');
+                }
+                
+                print('✅ إجمالي الاسيمنتات المختلفة: ${_allAssignments.length}');
+                for (final assignment in _allAssignments) {
+                  print('   📋 ${assignment.title}');
+                }
+              });
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('تم جلب درجات ${state.studentGrades.length} طالب بنجاح'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            } else if (state is DailyGradesError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('خطأ في جلب الدرجات: ${state.message}'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            } else if (state is DailyGradesEmpty) {
+              print('📭 لا توجد درجات مسجلة لهذا التاريخ');
+              // تنظيف الـ controllers و absenceTimes
+              setState(() {
+                for (final studentControllers in _gradeControllers.values) {
+                  for (final controller in studentControllers.values) {
+                    controller.clear();
+                  }
+                }
+                _absenceTimes.clear();
+                _studentQuizzes.clear();
+                _studentAssignments.clear();
+                _allQuizzes.clear();
+                _allAssignments.clear();
+              });
             }
           },
         ),
@@ -931,8 +1172,9 @@ class _GradesScreenState extends State<GradesScreen> {
                               ),
                             ],
                           ),
-                      // جدول الطلاب (يختلف حسب نوع الدرجات)
                         ),
+                      
+                      // جدول الطلاب (يختلف حسب نوع الدرجات)
                         if (selectedSubject != null) ...[
                         if (gradeType == 'فصلية')
                           _buildTermGradesTable()
@@ -1036,6 +1278,24 @@ class _GradesScreenState extends State<GradesScreen> {
                                                 textAlign: TextAlign.center,
                                               ),
                                             ),
+                                            
+                                            // عمود عدد مرات الغياب
+                                            Container(
+                                              width: 80,
+                                              height: 50,
+                                              alignment: Alignment.center,
+                                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                                              child: const Text(
+                                                'الغياب',
+                                                style: TextStyle(
+                                                  color: Color(0xFF1976D2),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                            
                                             // أعمدة الدرجات
                                             ...gradeTitles.map((title) {
                                               return Container(
@@ -1062,6 +1322,74 @@ class _GradesScreenState extends State<GradesScreen> {
                                                         '(${title.maxGrade!.toStringAsFixed(title.maxGrade! % 1 == 0 ? 0 : 1)})',
                                                         style: TextStyle(
                                                           color: Colors.grey[600],
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                            
+                                            // أعمدة الكويزات
+                                            ..._allQuizzes.map((quiz) {
+                                              return Container(
+                                                width: 100,
+                                                height: 50,
+                                                alignment: Alignment.center,
+                                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      quiz.title,
+                                                      style: const TextStyle(
+                                                        color: Colors.purple,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 13,
+                                                      ),
+                                                      textAlign: TextAlign.center,
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    if (quiz.maxGrade != null && quiz.maxGrade! > 0)
+                                                      Text(
+                                                        '(${quiz.maxGrade!.toStringAsFixed(quiz.maxGrade! % 1 == 0 ? 0 : 1)})',
+                                                        style: TextStyle(
+                                                          color: Colors.purple[300],
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                            
+                                            // أعمدة الاسيمنتات
+                                            ..._allAssignments.map((assignment) {
+                                              return Container(
+                                                width: 100,
+                                                height: 50,
+                                                alignment: Alignment.center,
+                                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      assignment.title,
+                                                      style: const TextStyle(
+                                                        color: Colors.orange,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 13,
+                                                      ),
+                                                      textAlign: TextAlign.center,
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    if (assignment.maxGrade != null && assignment.maxGrade! > 0)
+                                                      Text(
+                                                        '(${assignment.maxGrade!.toStringAsFixed(assignment.maxGrade! % 1 == 0 ? 0 : 1)})',
+                                                        style: TextStyle(
+                                                          color: Colors.orange[300],
                                                           fontSize: 11,
                                                         ),
                                                       ),

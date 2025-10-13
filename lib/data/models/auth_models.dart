@@ -147,9 +147,22 @@ class LoginResponse extends Equatable {
 
   factory LoginResponse.fromJson(dynamic json) {
     if (json == null || json is! Map<String, dynamic>) {
-      throw const FormatException('Invalid LoginResponse');
+      throw const FormatException('Invalid LoginResponse: null or not a Map');
     }
+    
+    // Validate required fields
+    if (!json.containsKey('token') || json['token'] == null) {
+      throw const FormatException('Missing required field: token');
+    }
+    if (!json.containsKey('userType') || json['userType'] == null) {
+      throw const FormatException('Missing required field: userType');
+    }
+    
     final profileData = json['profile'] ?? json['user'];
+    if (profileData == null) {
+      throw const FormatException('Missing required field: profile or user');
+    }
+    
     return LoginResponse(
       token: json['token'] as String,
       userType: json['userType'] as String,

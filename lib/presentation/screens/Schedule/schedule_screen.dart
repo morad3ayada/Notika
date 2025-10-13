@@ -296,7 +296,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                     textDirection: TextDirection.rtl,
                                   ),
                                   Text(
-                                    'رقم الحصة: ${s.classOrder}',
+                                    'رقم الدرس: ${s.classOrder}',
                                     style: const TextStyle(color: Color(0xFFE3F2FD), fontSize: 15),
                                     textDirection: TextDirection.rtl,
                                   ),

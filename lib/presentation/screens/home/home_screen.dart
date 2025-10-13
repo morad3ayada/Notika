@@ -342,7 +342,7 @@ class HomeScreenContent extends StatelessWidget {
   String _getUserTypeInArabic(String userType) {
     switch (userType.toLowerCase()) {
       case 'teacher':
-        return 'معلم';
+        return 'أستاذ';
       case 'admin':
         return 'مدير النظام';
       case 'student':

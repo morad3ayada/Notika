@@ -84,30 +84,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     int totalGrade = 0;
     bool _isSaving = false;
 
-    void _addComponent() {
-      if (selectedComponent != null && gradeController.text.isNotEmpty) {
-        final int grade = int.tryParse(gradeController.text) ?? 0;
-        if (grade <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('الدرجة يجب أن تكون أكبر من صفر'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
-        setState(() {
-          components.add({
-            'name': selectedComponent!,
-            'grade': grade,
-          });
-          totalGrade += grade;
-          gradeController.clear();
-          selectedComponent = null;
-        });
-      }
-    }
-
     Future<void> _saveChanges() async {
       if (components.isEmpty) {
         if (!mounted) return;
@@ -208,12 +184,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
           textDirection: TextDirection.rtl,
           child: StatefulBuilder(
             builder: (context, setState) {
-              return Container(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              void _addComponent() {
+                if (selectedComponent != null && gradeController.text.isNotEmpty) {
+                  final int grade = int.tryParse(gradeController.text) ?? 0;
+                  if (grade <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('الدرجة يجب أن تكون أكبر من صفر'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+                  setState(() {
+                    components.add({
+                      'name': selectedComponent!,
+                      'grade': grade,
+                    });
+                    totalGrade += grade;
+                    gradeController.clear();
+                    selectedComponent = null;
+                  });
+                }
+              }
+              
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     Center(
                       child: Container(
                         width: 40,
@@ -368,7 +373,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               );
             },
@@ -660,7 +667,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       const Icon(Icons.badge, color: Color(0xFF43A047), size: 18),
                                       const SizedBox(width: 6),
                                       Text(
-                                        (_profileResult?.profile.userType == 'Teacher') ? 'معلم' : (_profileResult?.profile.userType ?? ''),
+                                        (_profileResult?.profile.userType == 'Teacher') ? 'أستاذ' : (_profileResult?.profile.userType ?? ''),
                                         style: TextStyle(
                                           color: Theme.of(context).brightness == Brightness.dark
                                               ? Colors.white
@@ -816,15 +823,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         children: [
                                           Icon(Icons.assignment, color: color, size: 26),
                                           const SizedBox(width: 10),
-                                          Text(
-                                            'توزيع $name',
-                                            style: TextStyle(
-                                              color: color,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              fontFamily: 'Tajawal',
+                                          Expanded(
+                                            child: Text(
+                                              'توزيع $name',
+                                              style: TextStyle(
+                                                color: color,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                fontFamily: 'Tajawal',
+                                              ),
+                                              textDirection: TextDirection.rtl,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            textDirection: TextDirection.rtl,
                                           ),
                                         ],
                                       ),

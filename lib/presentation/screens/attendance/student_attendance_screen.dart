@@ -504,7 +504,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('رقم الحصة', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text('رقم الدرس', style: TextStyle(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<int>(
                               value: classOrder,
@@ -516,7 +516,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                               items: List.generate(8, (index) => index + 1)
                                   .map((order) => DropdownMenuItem(
                                         value: order,
-                                        child: Text('الحصة $order'),
+                                        child: Text('الدرس $order'),
                                       ))
                                   .toList(),
                               onChanged: (value) {

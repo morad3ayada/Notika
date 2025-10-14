@@ -35,9 +35,32 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
   String? selectedStage;
   String? selectedSection;
   String? selectedSubject;
-  String currentSemester = 'الثاني';
+  String currentSemester = _getCurrentSemester();
   String gradeType = 'يومية'; // 'يومية' or 'فصلية'
   DateTime selectedDate = DateTime.now();
+  
+  /// تحديد الفصل الدراسي بناءً على التاريخ الحالي
+  /// الفصل الأول: من أغسطس (8) إلى يناير (1)
+  /// الفصل الثاني: من فبراير (2) إلى يوليو (7)
+  static String _getCurrentSemester() {
+    final now = DateTime.now();
+    final month = now.month;
+    
+    // الفصل الثاني: من فبراير (2) إلى يوليو (7)
+    // الفصل الأول: من أغسطس (8) إلى يناير (1)
+    if (month >= 2 && month <= 7) {
+      return 'الثاني';
+    } else {
+      return 'الأول';
+    }
+  }
+  
+  /// التحقق من إمكانية عرض الفصل الثاني
+  /// الفصل الثاني يظهر فقط من شهر فبراير (2) إلى يوليو (7)
+  static bool _canShowSecondSemester() {
+    final now = DateTime.now();
+    return now.month >= 2 && now.month <= 7;
+  }
   late final ProfileBloc _profileBloc;
   late final ClassStudentsBloc _classStudentsBloc;
   late final DailyGradeTitlesBloc _dailyGradeTitlesBloc;
@@ -234,7 +257,8 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                 style: const TextStyle(
                   fontSize: 12,
                 ),
-                readOnly: currentSemester != 'الثاني',
+                // السماح بالتعديل في كلا الفصلين
+                readOnly: false,
               ),
             );
           }).toList(),
@@ -366,7 +390,8 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
       ));
       
       // جلب الدرجات تلقائياً لليوم الحالي
-      final formattedDate = '${selectedDate.day}-${selectedDate.month}-${selectedDate.year}';
+      // تنسيق التاريخ بصيغة ISO 8601 (YYYY-MM-DD) كما يتوقع السيرفر
+      final formattedDate = '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
       print('🔄 جلب الدرجات تلقائياً لليوم: $formattedDate');
       
       _dailyGradesBloc.add(LoadClassStudentsGradesEvent(
@@ -480,6 +505,16 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
     _classStudentsBloc = ClassStudentsBloc(sl<ClassStudentsRepository>());
     _dailyGradeTitlesBloc = DailyGradeTitlesBloc(sl<DailyGradeTitlesRepository>());
     _dailyGradesBloc = DailyGradesBloc(sl<DailyGradesRepository>());
+    
+    // طباعة عند بداية الشاشة
+    final now = DateTime.now();
+    final canShow = now.month >= 2 && now.month <= 7;
+    print('═══════════════════════════════════════════');
+    print('🎓 شاشة الدرجات - تم البدء');
+    print('📅 التاريخ الحالي: ${now.day}/${now.month}/${now.year}');
+    print('📅 الشهر الحالي: ${now.month}');
+    print('📊 هل يظهر الفصل الثاني؟ ${canShow ? "نعم ✅ (شهر 2-7)" : "لا ❌ (خارج 2-7)"}');
+    print('═══════════════════════════════════════════');
   }
 
   @override
@@ -508,6 +543,15 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
   @override
   Widget build(BuildContext context) {
     final gradeComponents = context.watch<GradeComponents>().components;
+    
+    // التحقق من إمكانية عرض الفصل الثاني (من شهر 2 إلى شهر 7 فقط)
+    final now = DateTime.now();
+    final canShowSecondSemester = now.month >= 2 && now.month <= 7;
+    
+    // طباعة للتشخيص
+    debugPrint('📅 الشهر الحالي: ${now.month}');
+    debugPrint('📊 عرض الفصل الثاني: ${canShowSecondSemester ? "نعم ✅" : "لا ❌"}');
+    debugPrint('📚 الفصل الحالي: $currentSemester');
 
     // Initialize student data with current components
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1071,103 +1115,111 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                         Padding(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16.0, vertical: 12),
-                          child: Row(
-                            children: [
-                              // الفصل الأول
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () =>
-                                      setState(() => currentSemester = 'الأول'),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
-                                    decoration: BoxDecoration(
-                                      gradient: currentSemester == 'الأول'
-                                          ? const LinearGradient(
-                                              colors: [
-                                                Color(0xFF1976D2),
-                                                Color(0xFF64B5F6)
-                                              ],
-                                              begin: Alignment.centerRight,
-                                              end: Alignment.centerLeft,
-                                            )
-                                          : null,
-                                      color: currentSemester == 'الأول'
-                                          ? null
-                                          : Colors.grey[200],
-                                      borderRadius:
-                                          const BorderRadius.horizontal(
-                                        right: Radius.circular(16),
-                                        left: Radius.zero,
+                          child: Builder(
+                            builder: (context) {
+                              print('🔍 بناء أزرار الفصول الدراسية');
+                              print('   - الشهر الحالي: ${DateTime.now().month}');
+                              print('   - canShowSecondSemester: $canShowSecondSemester');
+                              print('   - سيتم عرض: ${canShowSecondSemester ? "زرين (الأول + الثاني)" : "زر واحد (الأول فقط)"}');
+                              
+                              return canShowSecondSemester
+                              ? Row(
+                                  children: [
+                                    // الفصل الأول
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            setState(() => currentSemester = 'الأول'),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          decoration: BoxDecoration(
+                                            gradient: currentSemester == 'الأول'
+                                                ? const LinearGradient(
+                                                    colors: [
+                                                      Color(0xFF1976D2),
+                                                      Color(0xFF64B5F6)
+                                                    ],
+                                                    begin: Alignment.centerRight,
+                                                    end: Alignment.centerLeft,
+                                                  )
+                                                : null,
+                                            color: currentSemester == 'الأول'
+                                                ? null
+                                                : Colors.grey[200],
+                                            borderRadius:
+                                                const BorderRadius.horizontal(
+                                              right: Radius.circular(16),
+                                              left: Radius.zero,
+                                            ),
+                                            boxShadow: currentSemester == 'الأول'
+                                                ? [
+                                                    BoxShadow(
+                                                      color: Colors.blue
+                                                          .withOpacity(0.2),
+                                                      blurRadius: 10,
+                                                      offset: const Offset(0, 4),
+                                                    ),
+                                                  ]
+                                                : null,
+                                          ),
+                                          child: Text(
+                                            'الفصل الأول',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: currentSemester == 'الأول'
+                                                  ? Colors.white
+                                                  : Colors.grey[700],
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                      boxShadow: currentSemester == 'الأول'
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.blue
-                                                    .withOpacity(0.2),
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ]
-                                          : null,
                                     ),
-                                    child: Text(
-                                      'الفصل الأول',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: currentSemester == 'الأول'
-                                            ? Colors.white
-                                            : Colors.grey[700],
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // الفصل الثاني
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => setState(
-                                      () => currentSemester = 'الثاني'),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
-                                    decoration: BoxDecoration(
-                                      gradient: currentSemester == 'الثاني'
-                                          ? const LinearGradient(
-                                              colors: [
-                                                Color(0xFF1976D2),
-                                                Color(0xFF64B5F6)
-                                              ],
-                                              begin: Alignment.centerRight,
-                                              end: Alignment.centerLeft,
-                                            )
-                                          : null,
-                                      color: currentSemester == 'الثاني'
-                                          ? null
-                                          : Colors.grey[200],
-                                      borderRadius:
-                                          const BorderRadius.horizontal(
-                                        left: Radius.circular(16),
-                                        right: Radius.zero,
-                                      ),
-                                      boxShadow: currentSemester == 'الثاني'
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.blue
-                                                    .withOpacity(0.2),
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                    child: Text(
-                                      'الفصل الثاني',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: currentSemester == 'الثاني'
+                                    // الفصل الثاني
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () => setState(
+                                            () => currentSemester = 'الثاني'),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          decoration: BoxDecoration(
+                                            gradient: currentSemester == 'الثاني'
+                                                ? const LinearGradient(
+                                                    colors: [
+                                                      Color(0xFF1976D2),
+                                                      Color(0xFF64B5F6)
+                                                    ],
+                                                    begin: Alignment.centerRight,
+                                                    end: Alignment.centerLeft,
+                                                  )
+                                                : null,
+                                            color: currentSemester == 'الثاني'
+                                                ? null
+                                                : Colors.grey[200],
+                                            borderRadius:
+                                                const BorderRadius.horizontal(
+                                              left: Radius.circular(16),
+                                              right: Radius.zero,
+                                            ),
+                                            boxShadow: currentSemester == 'الثاني'
+                                                ? [
+                                                    BoxShadow(
+                                                      color: Colors.blue
+                                                          .withOpacity(0.2),
+                                                      blurRadius: 10,
+                                                      offset: const Offset(0, 4),
+                                                    ),
+                                                  ]
+                                                : null,
+                                          ),
+                                          child: Text(
+                                            'الفصل الثاني',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: currentSemester == 'الثاني'
                                             ? Colors.white
                                             : Colors.grey[700],
                                         fontSize: 18,
@@ -1178,6 +1230,47 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                                 ),
                               ),
                             ],
+                          )
+                              : // خارج شهر 2-7: عرض الفصل الأول فقط بعرض الشاشة الكامل
+                              SizedBox(
+                                  width: double.infinity,
+                                  child: GestureDetector(
+                                    onTap: () =>
+                                        setState(() => currentSemester = 'الأول'),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 16),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Color(0xFF1976D2),
+                                            Color(0xFF64B5F6)
+                                          ],
+                                          begin: Alignment.centerRight,
+                                          end: Alignment.centerLeft,
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.blue.withOpacity(0.2),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Text(
+                                        'الفصل الأول',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                            },
                           ),
                         ),
                       
@@ -1592,19 +1685,13 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                                                                 .bodyMedium
                                                                 ?.color,
                                                       ),
-                                                      onChanged:
-                                                          currentSemester ==
-                                                                  'الثاني'
-                                                              ? (value) {
-                                                                  setState(() {
-                                                                    student[component] =
-                                                                        value;
-                                                                  });
-                                                                }
-                                                              : null,
-                                                      readOnly:
-                                                          currentSemester !=
-                                                              'الثاني',
+                                                      // السماح بالتعديل في كلا الفصلين
+                                                      onChanged: (value) {
+                                                        setState(() {
+                                                          student[component] = value;
+                                                        });
+                                                      },
+                                                      readOnly: false,
                                                     ),
                                                   ),
                                                 );
@@ -1620,37 +1707,36 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                                       ],
                                     ),
                                   ),
-                                  // Show save button only for second semester
-                                  if (currentSemester == 'الثاني')
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 16),
-                                      child: SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton(
-                                          onPressed: _saveGrades,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xFF1976D2),
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 16),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            elevation: 4,
+                                  // زر الحفظ متاح في كلا الفصلين
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 16),
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton(
+                                        onPressed: _saveGrades,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF1976D2),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
-                                          child: const Text(
-                                            'حفظ الدرجات',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                          elevation: 4,
+                                        ),
+                                        child: const Text(
+                                          'حفظ الدرجات',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ),
                                     ),
+                                  ),
                                 ],
                               );
                             },

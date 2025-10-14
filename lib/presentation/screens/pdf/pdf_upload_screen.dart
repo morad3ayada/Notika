@@ -304,37 +304,200 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
     });
   }
 
-  void submit() {
+  Future<void> submit() async {
+    // التحقق من الحقول المطلوبة
     if (selectedFile == null ||
         selectedSchool == null ||
         selectedStage == null ||
         selectedSection == null ||
-        selectedSubject == null) {
+        selectedSubject == null ||
+        selectedUnit == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى اختيار جميع الحقول ورفع ملف')),
+        const SnackBar(content: Text('يرجى اختيار جميع الحقول بما في ذلك الوحدة ورفع ملف')),
       );
       return;
     }
-    // هنا يمكنك تنفيذ رفع الملف فعلياً
-    String details = detailsController.text.trim();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم رفع الملف بنجاح!')),
-    );
-    setState(() {
-      selectedFile = null;
-      selectedAudio = null;
-      selectedSchool = null;
-      selectedStage = null;
-      selectedSection = null;
-      selectedSubject = null;
-      selectedUnit = null;
-      detailsController.clear();
-    });
+
+    print('════════════════════════════════════════════');
+    print('📤 بدء عملية رفع الملف');
+    print('════════════════════════════════════════════');
+
+    try {
+      // الحصول على البيانات من ProfileBloc
+      final profileState = _profileBloc.state;
+      if (profileState is! ProfileLoaded) {
+        throw Exception('لم يتم تحميل بيانات المعلم');
+      }
+
+      final classes = profileState.classes;
+
+      // العثور على الفصل المطابق
+      final matchingClass = TeacherClassMatcher.findMatchingTeacherClass(
+        classes,
+        selectedSchool!,
+        selectedStage!,
+        selectedSection!,
+        selectedSubject!,
+      );
+
+      if (matchingClass == null) {
+        throw Exception('لم يتم العثور على الفصل المطابق');
+      }
+
+      // الحصول على FileClassificationId من BLoC
+      final fileClassState = _fileClassificationBloc.state;
+      String? fileClassificationId;
+      
+      if (fileClassState is FileClassificationsLoaded) {
+        final selectedFileClass = fileClassState.fileClassifications
+            .firstWhere(
+              (fc) => fc.name == selectedUnit,
+              orElse: () => throw Exception('لم يتم العثور على الوحدة المختارة'),
+            );
+        fileClassificationId = selectedFileClass.id;
+      } else {
+        throw Exception('لم يتم تحميل قائمة الوحدات');
+      }
+
+      if (fileClassificationId == null || fileClassificationId.isEmpty) {
+        throw Exception('معرف الوحدة غير صالح');
+      }
+
+      // الحصول على معلومات الملف
+      final fileName = selectedFile!.path.split('/').last;
+      final fileExtension = fileName.split('.').last.toLowerCase();
+      final title = detailsController.text.trim().isNotEmpty 
+          ? detailsController.text.trim() 
+          : fileName.replaceAll('.$fileExtension', '');
+
+      print('📋 بيانات الإرسال:');
+      print('   - المدرسة: $selectedSchool');
+      print('   - المرحلة: $selectedStage');
+      print('   - الشعبة: $selectedSection');
+      print('   - المادة: $selectedSubject');
+      print('   - الوحدة: $selectedUnit');
+      print('   - LevelSubjectId: ${matchingClass.levelSubjectId}');
+      print('   - LevelId: ${matchingClass.levelId}');
+      print('   - ClassId: ${matchingClass.classId ?? "غير محدد"}');
+      print('   - FileClassificationId: $fileClassificationId');
+      print('   - Title: $title');
+      print('   - FileType: $fileExtension');
+      print('   - اسم الملف: $fileName');
+      print('   - حجم الملف: ${selectedFile!.lengthSync()} bytes');
+      print('   - Note: ${detailsController.text.trim()}');
+
+      // الحصول على التوكن
+      final token = await AuthService.getToken();
+      if (token == null) {
+        throw Exception('لم يتم العثور على التوكن');
+      }
+
+      print('🔑 التوكن: ${token.substring(0, 20)}...');
+
+      // إنشاء الطلب
+      final baseUrl = await AuthService.getOrganizationUrl();
+      final url = Uri.parse('$baseUrl/api/file/add');
+      
+      print('🌐 URL: $url');
+      
+      final request = http.MultipartRequest('POST', url);
+      
+      // إضافة الـ Headers
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+      
+      print('📨 Headers:');
+      print('   - Authorization: Bearer ${token.substring(0, 20)}...');
+      print('   - Accept: application/json');
+
+      // إضافة الملف (حقل File مطلوب)
+      final fileBytes = await selectedFile!.readAsBytes();
+      request.files.add(http.MultipartFile.fromBytes(
+        'File',
+        fileBytes,
+        filename: fileName,
+      ));
+      
+      print('📎 تم إضافة الملف');
+
+      // إضافة الحقول المطلوبة
+      request.fields['LevelSubjectId'] = matchingClass.levelSubjectId ?? '';
+      request.fields['LevelId'] = matchingClass.levelId ?? '';
+      request.fields['FileClassificationId'] = fileClassificationId;
+      request.fields['Title'] = title;
+      request.fields['FileType'] = fileExtension;
+      
+      // الحقول الاختيارية
+      if (matchingClass.classId != null && matchingClass.classId!.isNotEmpty) {
+        request.fields['ClassId'] = matchingClass.classId!;
+      }
+      
+      request.fields['Path'] = ''; // فارغ كما هو مطلوب
+      
+      final note = detailsController.text.trim();
+      if (note.isNotEmpty) {
+        request.fields['Note'] = note;
+      }
+
+      print('📝 الحقول المرسلة:');
+      request.fields.forEach((key, value) {
+        print('   - $key: $value');
+      });
+
+      // إرسال الطلب
+      print('🚀 جاري إرسال الطلب...');
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📥 استجابة السيرفر:');
+      print('   - Status Code: ${response.statusCode}');
+      print('   - Status: ${response.statusCode >= 200 && response.statusCode < 300 ? "نجح ✅" : "فشل ❌"}');
+      print('   - Response Body:');
+      print(response.body);
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        // نجح الرفع
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم رفع الملف بنجاح! ✅'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+
+        // مسح البيانات بعد النجاح
+        setState(() {
+          selectedFile = null;
+          selectedAudio = null;
+          selectedSchool = null;
+          selectedStage = null;
+          selectedSection = null;
+          selectedSubject = null;
+          selectedUnit = null;
+          detailsController.clear();
+        });
+      } else {
+        // فشل الرفع
+        throw Exception('فشل رفع الملف: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('❌ خطأ في رفع الملف: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _openUnitSelector() async {
     final controller = TextEditingController();
-    final localUnits = List<String>.from(units);
     String? localSelectedUnit = selectedUnit;
 
     await showModalBottomSheet(
@@ -345,9 +508,19 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) {
-          return Directionality(
+      builder: (ctx) => BlocBuilder<FileClassificationBloc, FileClassificationState>(
+        bloc: _fileClassificationBloc,
+        builder: (context, fileClassState) {
+          // استخدام البيانات من BLoC مباشرة
+          final localUnits = fileClassState is FileClassificationsLoaded
+              ? fileClassState.fileClassifications.map((fc) => fc.name).toList()
+              : List<String>.from(units);
+          
+          print('📋 Modal - عرض ${localUnits.length} وحدة');
+          
+          return StatefulBuilder(
+            builder: (contextModal, setModalState) {
+              return Directionality(
             textDirection: TextDirection.rtl,
             child: Padding(
               padding: EdgeInsets.only(
@@ -535,9 +708,53 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
               ),
             ),
           );
+            },
+          );
         },
       ),
     );
+  }
+
+  void _loadFileClassifications(
+    List<TeacherClass> classes,
+    String? school,
+    String? stage,
+    String? section,
+    String? subject,
+  ) {
+    if (school == null || stage == null || section == null || subject == null) {
+      print('⚠️ لا يمكن جلب FileClassifications - بعض الاختيارات مفقودة');
+      return;
+    }
+
+    // Find matching TeacherClass
+    final matchingClass = TeacherClassMatcher.findMatchingTeacherClass(
+      classes,
+      school,
+      stage,
+      section,
+      subject,
+    );
+
+    if (matchingClass == null) {
+      print('⚠️ لم يتم العثور على الفصل المطابق');
+      return;
+    }
+
+    print('🔵 تم اختيار المادة - جلب FileClassifications');
+    print('   - المدرسة: $school');
+    print('   - المرحلة: $stage');
+    print('   - الشعبة: $section');
+    print('   - المادة: $subject');
+
+    // Dispatch LoadFileClassificationsEvent
+    _fileClassificationBloc.add(LoadFileClassificationsEvent(
+      levelSubjectId: matchingClass.levelSubjectId ??
+          matchingClass.subjectId ??
+          '00000000-0000-0000-0000-000000000000',
+      levelId: matchingClass.levelId ?? '00000000-0000-0000-0000-000000000000',
+      classId: matchingClass.classId ?? '00000000-0000-0000-0000-000000000000',
+    ));
   }
 
   void _submitFileClassification() {
@@ -740,6 +957,28 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                             backgroundColor: Colors.red,
                           ),
                         );
+                      } else if (fileClassificationState
+                          is FileClassificationsLoaded) {
+                        // تحديث قائمة الوحدات عند جلبها من السيرفر
+                        print('✅ تم استلام FileClassifications في الشاشة');
+                        print('   - العدد: ${fileClassificationState.fileClassifications.length}');
+                        
+                        setState(() {
+                          units.clear();
+                          units.addAll(
+                            fileClassificationState.fileClassifications
+                                .map((fc) => fc.name)
+                                .toList(),
+                          );
+                        });
+                        
+                        print('📋 تم تحديث قائمة الوحدات المحلية:');
+                        for (var i = 0; i < units.length; i++) {
+                          print('   ${i + 1}. ${units[i]}');
+                        }
+                      } else if (fileClassificationState
+                          is FileClassificationError) {
+                        print('❌ خطأ في جلب FileClassifications: ${fileClassificationState.message}');
                       }
                     },
                     builder: (context, fileClassificationState) {
@@ -1039,6 +1278,15 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                                                     setState(() {
                                                       selectedSubject = subject;
                                                     });
+                                                    
+                                                    // جلب FileClassifications عند اختيار المادة
+                                                    _loadFileClassifications(
+                                                      classes,
+                                                      selectedSchool,
+                                                      selectedStage,
+                                                      selectedSection,
+                                                      subject,
+                                                    );
                                                   },
                                                   child: AnimatedContainer(
                                                     duration: const Duration(

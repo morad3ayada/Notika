@@ -134,6 +134,10 @@ class FileClassificationRepository {
     required String classId,
   }) async {
     try {
+      print('═══════════════════════════════════════════════════════');
+      print('📂 جلب FileClassifications من السيرفر');
+      print('═══════════════════════════════════════════════════════');
+      
       // Get authentication token
       final token = await AuthService.getToken();
       if (token == null) {
@@ -143,35 +147,79 @@ class FileClassificationRepository {
       // Remove Bearer prefix if present
       final cleanToken = token.startsWith('Bearer ') ? token.substring(7) : token;
 
+      print('📋 المعاملات:');
+      print('   - LevelSubjectId: $levelSubjectId');
+      print('   - LevelId: $levelId');
+      print('   - ClassId: $classId');
+      print('🔑 التوكن: ${cleanToken.substring(0, 20)}...');
+
+      // Build URL with correct endpoint
+      final url = Uri.parse('$baseUrl/fileclassification/getByLevelAndClass?LevelSubjectId=$levelSubjectId&LevelId=$levelId&ClassId=$classId');
+      
+      print('🌐 URL: $url');
+
       // Send GET request
       final response = await http.get(
-        Uri.parse('$baseUrl/fileclassification?levelSubjectId=$levelSubjectId&levelId=$levelId&classId=$classId'),
+        url,
         headers: {
-          'accept': 'application/json',
+          'accept': 'text/plain',
           'Authorization': cleanToken,
         },
       );
 
-      print('Get file classifications API Response - Status: ${response.statusCode}');
-      print('Get file classifications API Response - Body: ${response.body}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📥 استجابة السيرفر:');
+      print('   - Status Code: ${response.statusCode}');
+      print('   - Status: ${response.statusCode == 200 ? "نجح ✅" : "فشل ❌"}');
+      print('   - Response Body:');
+      print(response.body);
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         
+        print('📊 تحليل البيانات المستلمة:');
+        print('   - نوع البيانات: ${responseData.runtimeType}');
+        
         if (responseData is List) {
-          return responseData
+          print('   - البيانات عبارة عن قائمة (List)');
+          print('   - عدد العناصر: ${responseData.length}');
+          
+          final classifications = responseData
               .map((item) => FileClassification.fromJson(item))
               .toList();
+          
+          print('✅ تم تحويل ${classifications.length} عنصر بنجاح');
+          for (var i = 0; i < classifications.length; i++) {
+            print('   ${i + 1}. ${classifications[i].name} (ID: ${classifications[i].id})');
+          }
+          
+          return classifications;
         } else if (responseData is Map<String, dynamic>) {
+          print('   - البيانات عبارة عن Object (Map)');
+          print('   - المفاتيح الموجودة: ${responseData.keys.join(", ")}');
+          
           // Check if data is wrapped in another object
           final data = responseData['data'] ?? responseData['result'] ?? responseData;
+          
           if (data is List) {
-            return data
+            print('   - البيانات داخل المفتاح "data" أو "result"');
+            print('   - عدد العناصر: ${data.length}');
+            
+            final classifications = data
                 .map((item) => FileClassification.fromJson(item))
                 .toList();
+            
+            print('✅ تم تحويل ${classifications.length} عنصر بنجاح');
+            for (var i = 0; i < classifications.length; i++) {
+              print('   ${i + 1}. ${classifications[i].name} (ID: ${classifications[i].id})');
+            }
+            
+            return classifications;
           }
         }
         
+        print('⚠️ البيانات بتنسيق غير متوقع - إرجاع قائمة فارغة');
         return [];
       } else {
         // Handle error response

@@ -46,6 +46,11 @@ class FileClassificationBloc extends Bloc<FileClassificationEvent, FileClassific
     Emitter<FileClassificationState> emit,
   ) async {
     try {
+      print('🔷 FileClassificationBloc: بدء جلب FileClassifications');
+      print('   - LevelSubjectId: ${event.levelSubjectId}');
+      print('   - LevelId: ${event.levelId}');
+      print('   - ClassId: ${event.classId}');
+      
       emit(const FileClassificationLoading());
 
       final fileClassifications = await _repository.getFileClassifications(
@@ -54,8 +59,13 @@ class FileClassificationBloc extends Bloc<FileClassificationEvent, FileClassific
         classId: event.classId,
       );
 
+      print('🔷 FileClassificationBloc: تم الحصول على ${fileClassifications.length} عنصر');
+      
       emit(FileClassificationsLoaded(fileClassifications: fileClassifications));
+      
+      print('✅ FileClassificationBloc: تم emit حالة FileClassificationsLoaded');
     } catch (e) {
+      print('❌ FileClassificationBloc: خطأ في جلب FileClassifications: $e');
       
       String errorMessage = 'فشل في جلب قائمة الفصول/الوحدات';
       if (e is Exception) {

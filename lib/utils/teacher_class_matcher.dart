@@ -14,20 +14,12 @@ class TeacherClassMatcher {
     String? selectedSubject,
   ) {
     if (classes.isEmpty) {
-      print('❌ No teacher classes available');
       return null;
     }
-
-    print('🔍 Searching for matching TeacherClass:');
-    print('   School: $selectedSchool');
-    print('   Level: $selectedLevel');
-    print('   Section: $selectedSection');
-    print('   Subject: $selectedSubject');
 
     // Phase 1: Try exact match after normalization
     for (final teacherClass in classes) {
       if (_isExactMatch(teacherClass, selectedSchool, selectedLevel, selectedSection, selectedSubject)) {
-        print('✅ Found exact match: ${teacherClass.toString()}');
         return teacherClass;
       }
     }
@@ -35,7 +27,6 @@ class TeacherClassMatcher {
     // Phase 2: Try partial match (especially for subjects)
     for (final teacherClass in classes) {
       if (_isPartialMatch(teacherClass, selectedSchool, selectedLevel, selectedSection, selectedSubject)) {
-        print('✅ Found partial match: ${teacherClass.toString()}');
         return teacherClass;
       }
     }
@@ -43,12 +34,10 @@ class TeacherClassMatcher {
     // Phase 3: Try match without spaces as last resort
     for (final teacherClass in classes) {
       if (_isMatchWithoutSpaces(teacherClass, selectedSchool, selectedLevel, selectedSection, selectedSubject)) {
-        print('✅ Found match without spaces: ${teacherClass.toString()}');
         return teacherClass;
       }
     }
 
-    print('❌ No matching TeacherClass found');
     return null;
   }
 

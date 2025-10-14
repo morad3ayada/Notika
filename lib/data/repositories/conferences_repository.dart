@@ -5,9 +5,10 @@ import '../../config/api_config.dart';
 import '../models/conference_model.dart';
 
 class ConferencesRepository {
-  final ApiClient _apiClient;
+  // إنشاء ApiClient ديناميكياً في كل مرة ليستخدم ApiConfig.baseUrl الحالي
+  ApiClient get _apiClient => ApiClient(baseUrl: ApiConfig.baseUrl);
 
-  ConferencesRepository(this._apiClient);
+  ConferencesRepository();
 
   /// Fetches conferences from the API
   /// Returns a list of ConferenceModel objects

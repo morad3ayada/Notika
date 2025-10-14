@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/quick_tests_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 class QuickTestsRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net';
+  String get baseUrl => ApiConfig.baseUrl;
 
   QuickTestsRepository();
 

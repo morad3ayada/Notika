@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/notification_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لجلب الإشعارات من السيرفر
 class NotificationsRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  // استخدام ApiConfig.baseUrl الديناميكي بدلاً من URL ثابت
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// جلب جميع الإشعارات من السيرفر
   Future<NotificationsResponse> getNotifications() async {

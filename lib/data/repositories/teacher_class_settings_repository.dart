@@ -2,16 +2,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/teacher_class_setting_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لجلب وتحديث صلاحيات الطلاب
 class TeacherClassSettingsRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// جلب إعدادات صلاحيات الطلاب من السيرفر
   Future<TeacherClassSettingsResponse> getSettings() async {
     try {
       print('📚 جلب إعدادات صلاحيات الطلاب...');
-
       // الحصول على التوكن
       final token = await AuthService.getToken();
       if (token == null || token.isEmpty) {

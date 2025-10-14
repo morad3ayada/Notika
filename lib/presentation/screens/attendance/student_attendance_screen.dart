@@ -11,6 +11,8 @@ import '../../../data/models/attendance_model.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/attendance_repository.dart';
+import '../../../utils/server_data_mixin.dart';
+import '../../../logic/blocs/base/base_state.dart';
 
 class StudentAttendanceScreen extends StatefulWidget {
   const StudentAttendanceScreen({super.key});
@@ -20,7 +22,7 @@ class StudentAttendanceScreen extends StatefulWidget {
       _StudentAttendanceScreenState();
 }
 
-class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
+class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> with ServerDataMixin<StudentAttendanceScreen> {
   String? selectedSchool;
   String? selectedStage;
   String? selectedSection;
@@ -119,6 +121,12 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     super.dispose();
   }
 
+  @override
+  Future<void> loadServerData() async {
+    // جلب البيانات من السيرفر عند الدخول للشاشة
+    _profileBloc.add(const FetchProfile());
+  }
+
   void _submitAttendance() {
     if (selectedSchool == null ||
         selectedStage == null ||
@@ -192,59 +200,66 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                 style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: items.map((item) {
-              final isSelected = selected == item;
-              return Container(
-                margin: const EdgeInsets.only(right: 12),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(25),
-                    onTap: () => onSelect(item),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
-                      decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? const LinearGradient(
-                                colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              )
-                            : null,
-                        color: isSelected ? null : Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+        Align(
+          alignment: Alignment.centerRight,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            reverse: true,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: items.asMap().entries.map((entry) {
+                final item = entry.value;
+                final index = entry.key;
+                final isSelected = selected == item;
+                return Container(
+                  margin: EdgeInsets.only(left: index == items.length - 1 ? 0 : 12),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(25),
+                      onTap: () => onSelect(item),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: isSelected
+                              ? const LinearGradient(
+                                  colors: [Color(0xFF1976D2), Color(0xFF64B5F6)],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                )
+                              : null,
+                          color: isSelected ? null : Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          item,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.color ??
+                                    const Color(0xFF233A5A),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.color ??
-                                  const Color(0xFF233A5A),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
                         ),
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
         ),
       ],

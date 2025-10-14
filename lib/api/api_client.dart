@@ -205,25 +205,76 @@ class ApiClient {
   /// Logs request details for debugging
   void _logRequest(String method, Uri uri, Map<String, String> headers, String? body) {
     if (kDebugMode) {
-      debugPrint('\n=== API Request ===');
-      debugPrint('$method $uri');
-      debugPrint('Headers: ${_formatHeaders(headers)}');
+      debugPrint('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('📤 API REQUEST');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('🔹 Method:   $method');
+      debugPrint('🔹 URL:      $uri');
+      debugPrint('🔹 BaseURL:  $baseUrl');
+      debugPrint('\n📋 Headers:');
+      _formatHeaders(headers).split('\n').forEach((line) => debugPrint('   $line'));
       if (body != null) {
-        debugPrint('Body: $body');
+        debugPrint('\n📦 Request Body:');
+        try {
+          final decoded = jsonDecode(body);
+          final prettyJson = JsonEncoder.withIndent('  ').convert(decoded);
+          prettyJson.split('\n').forEach((line) => debugPrint('   $line'));
+        } catch (e) {
+          debugPrint('   $body');
+        }
       }
-      debugPrint('==================\n');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     }
   }
 
   /// Logs response details for debugging
   void _logResponse(String method, http.Response response) {
     if (kDebugMode) {
-      debugPrint('\n=== API Response ===');
-      debugPrint('Status: ${response.statusCode}');
-      debugPrint('URL: ${response.request?.url}');
-      debugPrint('Headers: ${_formatHeaders(response.headers)}');
-      debugPrint('Body: ${response.body}');
-      debugPrint('==================\n');
+      final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
+      final icon = isSuccess ? '✅' : '❌';
+      final statusColor = isSuccess ? '🟢' : '🔴';
+      
+      debugPrint('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('$icon API RESPONSE');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('$statusColor Status:  ${response.statusCode} ${_getStatusText(response.statusCode)}');
+      debugPrint('🔹 Method:  $method');
+      debugPrint('🔹 URL:     ${response.request?.url}');
+      debugPrint('\n📋 Response Headers:');
+      _formatHeaders(response.headers).split('\n').forEach((line) => debugPrint('   $line'));
+      debugPrint('\n📦 Response Body:');
+      if (response.body.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+          final prettyJson = JsonEncoder.withIndent('  ').convert(decoded);
+          prettyJson.split('\n').forEach((line) => debugPrint('   $line'));
+        } catch (e) {
+          debugPrint('   ${response.body}');
+        }
+      } else {
+        debugPrint('   (empty)');
+      }
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    }
+  }
+
+  /// Get status text for HTTP status codes
+  String _getStatusText(int statusCode) {
+    switch (statusCode) {
+      case 200: return 'OK';
+      case 201: return 'Created';
+      case 202: return 'Accepted';
+      case 204: return 'No Content';
+      case 400: return 'Bad Request';
+      case 401: return 'Unauthorized';
+      case 403: return 'Forbidden';
+      case 404: return 'Not Found';
+      case 422: return 'Unprocessable Entity';
+      case 429: return 'Too Many Requests';
+      case 500: return 'Internal Server Error';
+      case 502: return 'Bad Gateway';
+      case 503: return 'Service Unavailable';
+      default: return '';
     }
   }
 

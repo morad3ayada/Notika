@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/conversation_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لجلب المحادثات من السيرفر
 class ConversationsRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// جلب جميع المحادثات من السيرفر
   Future<ConversationsResponse> getConversations() async {

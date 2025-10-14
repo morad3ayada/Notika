@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/file_classification_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 class FileClassificationRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   Future<FileClassification> addFileClassification({
     required String levelSubjectId,

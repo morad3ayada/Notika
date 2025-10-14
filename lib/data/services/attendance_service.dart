@@ -2,7 +2,8 @@ import '../../api/api_client.dart';
 import '../../config/api_config.dart';
 
 class AttendanceService {
-  final ApiClient _client = ApiClient(baseUrl: ApiConfig.baseUrl);
+  // إنشاء ApiClient ديناميكياً ليستخدم ApiConfig.baseUrl الحالي
+  ApiClient get _client => ApiClient(baseUrl: ApiConfig.baseUrl);
 
   Future<List<Map<String, dynamic>>> getClassStudents({
     required String levelId,

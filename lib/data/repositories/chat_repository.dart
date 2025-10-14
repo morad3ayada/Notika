@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/chat_messages_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لجلب المحادثات من السيرفر
 class ChatRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  // استخدام ApiConfig.baseUrl الديناميكي بدلاً من URL ثابت
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// جلب المحادثة بين المعلم والطالب
   /// teacherId: userId للمعلم (المستخدم الحالي)

@@ -4,7 +4,8 @@ import '../../api/api_client.dart';
 import '../models/profile_models.dart';
 
 class ProfileService {
-  final ApiClient _client = ApiClient(baseUrl: ApiConfig.baseUrl);
+  // إنشاء ApiClient ديناميكياً ليستخدم ApiConfig.baseUrl الحالي
+  ApiClient get _client => ApiClient(baseUrl: ApiConfig.baseUrl);
 
   Future<TeacherProfile> getTeacherProfile() async {
     final responseData = await _client.get(ApiConfig.profileEndpoint);

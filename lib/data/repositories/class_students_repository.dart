@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/class_students_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لجلب بيانات طلاب الفصل من السيرفر
 class ClassStudentsRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// جلب طلاب الفصل من السيرفر
   Future<ClassStudentsResponse> getClassStudents({

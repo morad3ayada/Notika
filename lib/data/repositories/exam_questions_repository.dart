@@ -1,17 +1,16 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لإرسال الأسئلة للسيرفر
 class ExamQuestionsRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// إرسال الأسئلة للسيرفر
   Future<ExamQuestionsResponse> uploadExamQuestions({
     required String examTableId,
     required List<Map<String, dynamic>> questions,
-    File? examFile,
   }) async {
     try {
       print('📤 إرسال الأسئلة للسيرفر...');
@@ -48,22 +47,12 @@ class ExamQuestionsRepository {
         'createdAt': DateTime.now().toIso8601String(),
       });
       
-      // إنشاء ملف مؤقت للأسئلة
-      if (examFile != null) {
-        // إضافة الملف المرفوع من المستخدم
-        request.files.add(await http.MultipartFile.fromPath(
-          'File',
-          examFile.path,
-          filename: examFile.path.split('/').last,
-        ));
-      } else {
-        // إنشاء ملف JSON للأسئلة
-        request.files.add(http.MultipartFile.fromString(
-          'File',
-          questionsJson,
-          filename: 'exam_questions_${DateTime.now().millisecondsSinceEpoch}.json',
-        ));
-      }
+      // إنشاء ملف JSON للأسئلة
+      request.files.add(http.MultipartFile.fromString(
+        'File',
+        questionsJson,
+        filename: 'exam_questions_${DateTime.now().millisecondsSinceEpoch}.json',
+      ));
 
       print('📦 إرسال البيانات...');
       

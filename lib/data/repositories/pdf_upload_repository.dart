@@ -9,7 +9,8 @@ import '../../di/injector.dart';
 /// Repository مسؤول عن رفع الملفات للسيرفر
 /// بيستخدم MultipartRequest عشان يقدر يبعت الملفات مع البيانات
 class PdfUploadRepository {
-  final String _baseUrl = ApiConfig.baseUrl;
+  // إنشاء baseUrl ديناميكياً ليستخدم ApiConfig.baseUrl الحالي
+  String get _baseUrl => ApiConfig.baseUrl;
 
   /// الميثود الرئيسي لرفع الملف
   /// بياخد PdfUploadModel ويبعته للسيرفر باستخدام multipart/form-data

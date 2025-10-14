@@ -14,6 +14,8 @@ import '../../../logic/blocs/conferences/conferences_state.dart';
 import '../../../data/models/conference_model.dart';
 import '../../../data/repositories/conferences_repository.dart';
 import '../../../utils/teacher_class_matcher.dart';
+import '../../../utils/server_data_mixin.dart';
+import '../../../logic/blocs/base/base_state.dart';
 
 class ConferencesScreen extends StatefulWidget {
   const ConferencesScreen({super.key});
@@ -22,7 +24,7 @@ class ConferencesScreen extends StatefulWidget {
   State<ConferencesScreen> createState() => _ConferencesScreenState();
 }
 
-class _ConferencesScreenState extends State<ConferencesScreen> {
+class _ConferencesScreenState extends State<ConferencesScreen> with ServerDataMixin<ConferencesScreen> {
   String? selectedSchool;
   String? selectedStage;
   String? selectedSection;
@@ -559,10 +561,8 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
   @override
   void initState() {
     super.initState();
-    _profileBloc = ProfileBloc(sl<ProfileRepository>())
-      ..add(const FetchProfile());
-    _conferencesBloc = ConferencesBloc(sl<ConferencesRepository>())
-      ..add(const LoadConferences());
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
+    _conferencesBloc = ConferencesBloc(sl<ConferencesRepository>())..add(const LoadConferences());
   }
 
   @override
@@ -575,6 +575,13 @@ class _ConferencesScreenState extends State<ConferencesScreen> {
     _profileBloc.close();
     _conferencesBloc.close();
     super.dispose();
+  }
+
+  @override
+  Future<void> loadServerData() async {
+    // جلب البيانات من السيرفر عند الدخول للشاشة
+    _profileBloc.add(const FetchProfile());
+    _conferencesBloc.add(const LoadConferences());
   }
 
   Future<void> _selectDate(BuildContext context) async {

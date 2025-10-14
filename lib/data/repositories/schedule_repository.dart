@@ -4,11 +4,11 @@ import '../../api/api_client.dart';
 import '../models/schedule.dart';
 
 class ScheduleRepository {
-  final ApiClient _client;
+  // إنشاء ApiClient ديناميكياً ليستخدم ApiConfig.baseUrl الحالي
+  ApiClient get _client => ApiClient(baseUrl: ApiConfig.baseUrl);
   final String endpoint;
 
-  ScheduleRepository({ApiClient? client, this.endpoint = '/api/school/TeacherClasses'})
-      : _client = client ?? ApiClient(baseUrl: ApiConfig.baseUrl);
+  ScheduleRepository({this.endpoint = '/api/school/TeacherClasses'});
 
   Future<List<Schedule>> getSchedule() async {
     try {

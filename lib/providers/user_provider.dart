@@ -1,6 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models/auth_models.dart';
 import '../data/services/auth_service.dart';
@@ -20,12 +21,25 @@ class UserProvider with ChangeNotifier {
   Future<void> loadUserData() async {
     try {
       debugPrint('👤 UserProvider: Loading user data...');
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('⏱️ UserProvider: SharedPreferences timeout!');
+          throw TimeoutException('SharedPreferences timeout');
+        },
+      );
+      await prefs.reload().catchError((e) {
+        debugPrint('⚠️ UserProvider: reload error (non-critical): $e');
+        // نواصل حتى لو فشل reload
+      }); // إعادة تحميل البيانات من القرص
+      
       final token = prefs.getString(AuthService.tokenKey);
       final userDataString = prefs.getString(AuthService.userDataKey);
       
+      debugPrint('👤 UserProvider: Token exists: ${token != null}, UserData exists: ${userDataString != null}');
+      
       if (token != null && userDataString != null) {
-        debugPrint('👤 UserProvider: Found saved token and user data');
+        debugPrint('👤 UserProvider: Found saved token (${token.substring(0, 10)}...) and user data (${userDataString.length} chars)');
         _token = token;
         final userData = jsonDecode(userDataString) as Map<String, dynamic>;
         debugPrint('👤 UserProvider: User data keys: ${userData.keys.toList()}');
@@ -45,10 +59,11 @@ class UserProvider with ChangeNotifier {
         debugPrint('👤 UserProvider: User type: $userType');
         
         if (userType != 'teacher') {
-          // Clear invalid session data
-          debugPrint('❌ UserProvider: Invalid user type, clearing session');
+          // Clear invalid session data ONLY for non-teachers
+          debugPrint('❌ UserProvider: Invalid user type "$userType", clearing session');
           await prefs.remove(AuthService.tokenKey);
           await prefs.remove(AuthService.userDataKey);
+          await prefs.commit(); // إجبار حفظ التغييرات
           _token = null;
           _userProfile = null;
           _organization = null;
@@ -72,21 +87,19 @@ class UserProvider with ChangeNotifier {
             startStudyDate: _organization!.startStudyDate,
             endStudyDate: _organization!.endStudyDate,
           );
-          debugPrint('👤 UserProvider: Merged organization URL');
+          debugPrint('👤 UserProvider: Merged organization URL: $savedOrgUrl');
         }
         
-        debugPrint('✅ UserProvider: User data loaded successfully');
+        debugPrint('✅ UserProvider: User data loaded successfully for teacher ${_userProfile!.userName}');
         notifyListeners();
       } else {
-        debugPrint('⚠️ UserProvider: No saved token or user data found');
+        debugPrint('⚠️ UserProvider: No saved token or user data found (token: ${token != null}, userData: ${userDataString != null})');
       }
     } catch (e, stackTrace) {
       debugPrint('❌ UserProvider: Error loading user data: $e');
       debugPrint('Stack trace: $stackTrace');
-      // Clear corrupted data
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(AuthService.tokenKey);
-      await prefs.remove(AuthService.userDataKey);
+      // لا نمسح البيانات المحفوظة عند حدوث خطأ في التحميل
+      // فقط نعيّن القيم على null ونستمر
       _token = null;
       _userProfile = null;
       _organization = null;
@@ -104,14 +117,14 @@ class UserProvider with ChangeNotifier {
   
   // Clear user data on logout
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AuthService.tokenKey);
-    await prefs.remove(AuthService.userDataKey);
+    // استخدام دالة مسح الكاش الشاملة من AuthService
+    await AuthService.clearAuthData();
     
     _token = null;
     _userProfile = null;
     _organization = null;
     
     notifyListeners();
+    debugPrint('✅ UserProvider: Logged out and cleared all data');
   }
 }

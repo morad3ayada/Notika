@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_event.dart';
@@ -30,53 +32,132 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onCheckSavedAuth(CheckSavedAuth event, Emitter<AuthState> emit) async {
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('🔍 STARTING CheckSavedAuth...');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     try {
-      debugPrint('🔍 Checking saved auth...');
+      // لا نعرض AuthLoading حتى لا تظهر شاشة "جاري التحقق"
+      debugPrint('✓ Checking silently...');
       
       // Check if user is already logged in with saved credentials
-      final isLoggedIn = await auth_service.AuthService.isLoggedIn();
-      debugPrint('📱 isLoggedIn: $isLoggedIn');
+      debugPrint('📱 Step 1: Getting token...');
+      final token = await auth_service.AuthService.getToken().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('⏱️ getToken timeout!');
+          return null;
+        },
+      ).catchError((e) {
+        debugPrint('❌ getToken error: $e');
+        return null;
+      });
+      debugPrint('🔑 Token result: ${token != null ? "${token.substring(0, 10)}..." : "null"}');
+      
+      debugPrint('📱 Step 2: Getting organization URL...');
+      final orgUrl = await auth_service.AuthService.getOrganizationUrl().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('⏱️ getOrganizationUrl timeout!');
+          return null;
+        },
+      ).catchError((e) {
+        debugPrint('❌ getOrganizationUrl error: $e');
+        return null;
+      });
+      debugPrint('🌐 OrgUrl result: $orgUrl');
+      
+      debugPrint('📱 Step 3: Checking login status...');
+      final isLoggedIn = await auth_service.AuthService.isLoggedIn().catchError((e) {
+        debugPrint('❌ isLoggedIn error: $e');
+        return false;
+      });
+      debugPrint('📱 isLoggedIn result: $isLoggedIn');
       
       if (isLoggedIn) {
-        final savedAuthData = await auth_service.AuthService.getSavedAuthData();
-        debugPrint('📦 Saved auth data exists: ${savedAuthData != null}');
+        debugPrint('📱 Step 4: Loading saved auth data...');
+        final savedAuthData = await auth_service.AuthService.getSavedAuthData().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            debugPrint('⏱️ getSavedAuthData timeout!');
+            return null;
+          },
+        ).catchError((e) {
+          debugPrint('❌ getSavedAuthData error: $e');
+          return null;
+        });
+        debugPrint('📦 Saved auth data loaded: ${savedAuthData != null}');
         
         if (savedAuthData != null) {
-          debugPrint('📋 Saved data keys: ${savedAuthData.keys.toList()}');
+          debugPrint('📋 Data found');
           
-          // Validate required fields before parsing
+          // Validate required fields
           if (!savedAuthData.containsKey('token')) {
-            debugPrint('❌ Missing token field in saved data');
-            await auth_service.AuthService.clearAuthData();
+            debugPrint('❌ No token');
             emit(AuthInitial());
             return;
           }
           
           if (!savedAuthData.containsKey('userType')) {
-            debugPrint('⚠️ Missing userType field in saved data - data structure may be outdated');
-            await auth_service.AuthService.clearAuthData();
+            debugPrint('❌ No userType');
             emit(AuthInitial());
             return;
           }
           
+          debugPrint('✓ Data valid');
+          
+          // تحميل organization URL المحفوظ وتحديث ApiConfig
+          debugPrint('📱 Step 5: Loading organization URL...');
+          await auth_service.AuthService.loadSavedOrganizationUrl();
+          debugPrint('✅ Organization URL loaded and set in ApiConfig');
+          
           // Create a LoginResponse from saved data
-          final response = LoginResponse.fromJson(savedAuthData);
-          debugPrint('✅ Auth restored successfully for user: ${response.profile.userName}');
-          emit(AuthSuccess(response));
+          try {
+            debugPrint('Creating response...');
+            
+            // بناء البيانات بشكل مباشر وبسيط
+            final response = LoginResponse(
+              token: savedAuthData['token'] as String,
+              userType: savedAuthData['userType'] as String,
+              profile: UserProfile.fromJson(savedAuthData['profile'] as Map<String, dynamic>),
+              organization: savedAuthData['organization'] != null 
+                  ? Organization.fromJson(savedAuthData['organization'] as Map<String, dynamic>)
+                  : null,
+            );
+            
+            debugPrint('✅ Response created');
+            debugPrint('🚀 Emitting AuthSuccess...');
+            
+            emit(AuthSuccess(response));
+            
+            debugPrint('✅ DONE!');
+          } catch (e) {
+            debugPrint('❌ Error: $e');
+            emit(AuthInitial());
+            return;
+          }
         } else {
           debugPrint('⚠️ No saved auth data found');
           emit(AuthInitial());
         }
       } else {
-        debugPrint('⚠️ User not logged in');
+        debugPrint('⚠️ User not logged in - no token found');
         emit(AuthInitial());
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ Error checking saved auth: $e');
-      debugPrint('Stack trace: $stackTrace');
-      // Clear corrupted data to prevent future errors
-      await auth_service.AuthService.clearAuthData();
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('❌ CRITICAL ERROR in CheckSavedAuth: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      // لا نمسح البيانات المحفوظة عند حدوث خطأ - فقط نعرض شاشة تسجيل الدخول
+      // المستخدم يمكنه المحاولة مرة أخرى
+      debugPrint('⚠️ Emitting AuthInitial due to error...');
       emit(AuthInitial());
+      debugPrint('✓ AuthInitial emitted');
+    } finally {
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('🏁 CheckSavedAuth COMPLETED');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
   }
 }

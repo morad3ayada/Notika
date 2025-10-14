@@ -3,15 +3,15 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../models/assignment_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 class AssignmentRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   AssignmentRepository();
 
   Future<bool> createAssignment(CreateAssignmentRequest request) async {
     try {
-      developer.log('Creating assignment with data: ${request.toJson()}');
       
       final token = await AuthService.getToken();
       if (token == null) {

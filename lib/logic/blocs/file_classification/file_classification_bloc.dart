@@ -19,12 +19,6 @@ class FileClassificationBloc extends Bloc<FileClassificationEvent, FileClassific
     try {
       emit(const AddFileClassificationLoading());
 
-      print('FileClassificationBloc: Adding file classification with data:');
-      print('- levelSubjectId: ${event.levelSubjectId}');
-      print('- levelId: ${event.levelId}');
-      print('- classId: ${event.classId}');
-      print('- name: ${event.name}');
-
       final fileClassification = await _repository.addFileClassification(
         levelSubjectId: event.levelSubjectId,
         levelId: event.levelId,
@@ -32,14 +26,11 @@ class FileClassificationBloc extends Bloc<FileClassificationEvent, FileClassific
         name: event.name,
       );
 
-      print('FileClassificationBloc: Successfully added file classification: ${fileClassification.toJson()}');
-
       emit(AddFileClassificationSuccess(
         fileClassification: fileClassification,
         message: 'تم إضافة "${event.name}" بنجاح',
       ));
     } catch (e) {
-      print('FileClassificationBloc: Error adding file classification: $e');
       
       String errorMessage = 'فشل في إضافة الفصل/الوحدة';
       if (e is Exception) {
@@ -57,22 +48,14 @@ class FileClassificationBloc extends Bloc<FileClassificationEvent, FileClassific
     try {
       emit(const FileClassificationLoading());
 
-      print('FileClassificationBloc: Loading file classifications with data:');
-      print('- levelSubjectId: ${event.levelSubjectId}');
-      print('- levelId: ${event.levelId}');
-      print('- classId: ${event.classId}');
-
       final fileClassifications = await _repository.getFileClassifications(
         levelSubjectId: event.levelSubjectId,
         levelId: event.levelId,
         classId: event.classId,
       );
 
-      print('FileClassificationBloc: Successfully loaded ${fileClassifications.length} file classifications');
-
       emit(FileClassificationsLoaded(fileClassifications: fileClassifications));
     } catch (e) {
-      print('FileClassificationBloc: Error loading file classifications: $e');
       
       String errorMessage = 'فشل في جلب قائمة الفصول/الوحدات';
       if (e is Exception) {

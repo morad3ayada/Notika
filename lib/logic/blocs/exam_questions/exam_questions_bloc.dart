@@ -21,7 +21,6 @@ class ExamQuestionsBloc extends Bloc<ExamQuestionsEvent, ExamQuestionsState> {
       final response = await _repository.uploadExamQuestions(
         examTableId: event.examTableId,
         questions: event.questions,
-        examFile: event.examFile,
       );
 
       if (response.isSuccess) {

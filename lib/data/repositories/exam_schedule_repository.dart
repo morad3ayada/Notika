@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/exam_schedule_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لإدارة جدول الامتحانات
 class ExamScheduleRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// جلب جدول الامتحانات للمرحلة والشعبة المحددة
   Future<ExamScheduleResponse> getClassExamSchedules({

@@ -16,7 +16,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   late final ConversationsBloc _conversationsBloc;
   late final AllStudentsBloc _allStudentsBloc;
@@ -25,19 +25,43 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    // BLoC للمحادثات الرئيسية
-    _conversationsBloc = ConversationsBloc(sl<ConversationsRepository>())
-      ..add(const LoadConversationsEvent());
-    // BLoC للبحث في الطلاب
+    // تهيئة BLoCs
+    _conversationsBloc = ConversationsBloc(sl<ConversationsRepository>());
     _allStudentsBloc = AllStudentsBloc(sl<AllStudentsRepository>());
+    
+    // إضافة observer للتطبيق
+    WidgetsBinding.instance.addObserver(this);
+    
+    // جلب البيانات عند فتح الشاشة
+    _loadInitialData();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // عند العودة للشاشة من background
+    if (state == AppLifecycleState.resumed) {
+      _refreshData();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _conversationsBloc.close();
     _allStudentsBloc.close();
     super.dispose();
+  }
+
+  void _loadInitialData() {
+    // جلب المحادثات من السيرفر
+    _conversationsBloc.add(const LoadConversationsEvent());
+  }
+
+  void _refreshData() {
+    // تحديث البيانات من السيرفر
+    _conversationsBloc.add(const RefreshConversationsEvent());
   }
 
   void _onSearchChanged(String query) {
@@ -64,13 +88,15 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Theme.of(context).scaffoldBackgroundColor,
             ),
           ),
-          CustomPaint(
-            size: Size.infinite,
-            painter: _MeshBackgroundPainter(),
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _MeshBackgroundPainter(),
+            ),
           ),
-          CustomPaint(
-            size: Size.infinite,
-            painter: _GridPainter(),
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _GridPainter(),
+            ),
           ),
           // محتوى الصفحة: حقل البحث + قائمة الأشخاص
           SafeArea(
@@ -106,20 +132,27 @@ class _ChatScreenState extends State<ChatScreen> {
                   const SizedBox(height: 12),
                   // قائمة المحادثات أو نتائج البحث
                   Expanded(
-                    child: _isSearching
-                        ? _buildSearchResults()
-                        : _buildConversationsList(),
+                    child: RefreshIndicator(
+                      onRefresh: () async {
+                        // تحديث البيانات عند السحب للأسفل
+                        _refreshData();
+                        await Future.delayed(const Duration(milliseconds: 500));
+                      },
+                      child: _isSearching
+                          ? _buildSearchResults()
+                          : _buildConversationsList(),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-      ],
-    ),
+        ],
+      ),
     );
   }
 
-  // عرض قائمة المحادثات الرئيسية
+  // قائمة المحادثات
   Widget _buildConversationsList() {
     return BlocBuilder<ConversationsBloc, ConversationsState>(
       bloc: _conversationsBloc,
@@ -304,8 +337,8 @@ class _ChatScreenState extends State<ChatScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => ChatDetailsScreen(
@@ -315,6 +348,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               );
+              // تحديث البيانات عند العودة من شاشة التفاصيل
+              _refreshData();
             },
             child: Container(
               decoration: BoxDecoration(
@@ -428,8 +463,8 @@ class _ChatScreenState extends State<ChatScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => ChatDetailsScreen(
@@ -439,6 +474,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               );
+              // تحديث البيانات عند العودة من شاشة التفاصيل
+              _refreshData();
             },
             child: Container(
               decoration: BoxDecoration(

@@ -45,5 +45,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>UIApplicationExitsOnSuspend</key>
+	<false/>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>نحتاج إلى حفظ بيانات تسجيل الدخول الخاصة بك</string>
 </dict>
 </plist>

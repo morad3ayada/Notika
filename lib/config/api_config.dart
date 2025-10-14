@@ -1,7 +1,13 @@
 class ApiConfig {
-  // Base URLs
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net';
-  static const String centralAuthBaseUrl = baseUrl;
+  // Central Authentication Server
+  static const String centralAuthBaseUrl = 'https://notikacentraladmin.runasp.net';
+  
+  // Organization URL endpoint
+  static const String getOrganizationUrlEndpoint = '/api/OrganizationAuth/GetOrganizationUrl';
+  
+  // Dynamic baseUrl - يتم تحديثه بعد الحصول على URL المنظمة من السيرفر
+  // يجب تحميل الـ URL المحفوظ عند بدء التطبيق
+  static String baseUrl = '';
   
   // Endpoints
   static const String loginEndpoint = '/api/auth/login';
@@ -23,6 +29,16 @@ class ApiConfig {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
+  
+  // تحديث baseUrl الخاص بالمنظمة
+  static void setOrganizationBaseUrl(String organizationUrl) {
+    baseUrl = organizationUrl;
+  }
+  
+  // إعادة تعيين baseUrl (مسح الـ URL)
+  static void resetBaseUrl() {
+    baseUrl = '';
+  }
   
   // Get full URL for organization-specific endpoints
   static String getOrganizationAuthUrl(String orgBaseUrl, String endpoint) {

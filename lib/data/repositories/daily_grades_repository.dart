@@ -3,10 +3,11 @@ import 'package:http/http.dart' as http;
 import 'package:equatable/equatable.dart';
 import '../models/daily_grades_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 /// Repository لإدارة الدرجات اليومية
 class DailyGradesRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net/api';
+  String get baseUrl => '${ApiConfig.baseUrl}/api';
 
   /// تحديث الدرجات اليومية بشكل جماعي
   Future<DailyGradesResponse> updateBulkDailyGrades(

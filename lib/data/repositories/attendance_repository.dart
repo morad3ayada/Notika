@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/attendance_model.dart';
 import '../services/auth_service.dart';
+import '../../config/api_config.dart';
 
 class AttendanceRepository {
-  static const String baseUrl = 'https://nouraleelemorg.runasp.net';
+  String get baseUrl => ApiConfig.baseUrl;
 
   AttendanceRepository();
 

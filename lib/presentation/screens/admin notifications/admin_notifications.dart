@@ -5,6 +5,7 @@ import 'dart:ui';
 import '../../../logic/blocs/notifications/notifications_barrel.dart';
 import '../../../data/repositories/notifications_repository.dart';
 import '../../../di/injector.dart';
+import '../../../config/api_config.dart';
 
 class AdminNotificationsScreen extends StatefulWidget {
   const AdminNotificationsScreen({super.key});
@@ -188,7 +189,7 @@ class _AdminNotificationsScreenState extends State<AdminNotificationsScreen> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
                               child: Image.network(
-                                'https://nouraleelemorg.runasp.net${notif.imageUrl}',
+                                '${ApiConfig.baseUrl}${notif.imageUrl}',
                                 width: double.infinity,
                                 height: 200,
                                 fit: BoxFit.cover,

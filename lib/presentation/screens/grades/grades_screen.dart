@@ -20,6 +20,8 @@ import '../../../data/repositories/daily_grade_titles_repository.dart';
 import '../../../data/repositories/daily_grades_repository.dart';
 import '../../../di/injector.dart';
 import '../../../utils/teacher_class_matcher.dart';
+import '../../../utils/server_data_mixin.dart';
+import '../../../logic/blocs/base/base_state.dart';
 
 class GradesScreen extends StatefulWidget {
   const GradesScreen({super.key});
@@ -28,7 +30,7 @@ class GradesScreen extends StatefulWidget {
   State<GradesScreen> createState() => _GradesScreenState();
 }
 
-class _GradesScreenState extends State<GradesScreen> {
+class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<GradesScreen> {
   String? selectedSchool;
   String? selectedStage;
   String? selectedSection;
@@ -190,7 +192,7 @@ class _GradesScreenState extends State<GradesScreen> {
               _gradeControllers[student.id]![gradeTitle.id!] = TextEditingController();
             }
             
-            final controller = _gradeControllers[student.id]![gradeTitle.id]!;
+            final controller = _gradeControllers[student.id]![gradeTitle.id!]!;
             
             return Container(
               width: 100,
@@ -474,8 +476,7 @@ class _GradesScreenState extends State<GradesScreen> {
   @override
   void initState() {
     super.initState();
-    _profileBloc = ProfileBloc(sl<ProfileRepository>())
-      ..add(const FetchProfile());
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
     _classStudentsBloc = ClassStudentsBloc(sl<ClassStudentsRepository>());
     _dailyGradeTitlesBloc = DailyGradeTitlesBloc(sl<DailyGradeTitlesRepository>());
     _dailyGradesBloc = DailyGradesBloc(sl<DailyGradesRepository>());
@@ -496,6 +497,12 @@ class _GradesScreenState extends State<GradesScreen> {
     _dailyGradeTitlesBloc.close();
     _dailyGradesBloc.close();
     super.dispose();
+  }
+
+  @override
+  Future<void> loadServerData() async {
+    // جلب البيانات من السيرفر عند الدخول للشاشة
+    _profileBloc.add(const FetchProfile());
   }
 
   @override

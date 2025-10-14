@@ -22,10 +22,6 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
     try {
       emit(const ClassStudentsLoading());
       
-      print('🔄 بدء جلب طلاب الفصل...');
-      print('📚 LevelId: ${event.levelId}');
-      print('📚 ClassId: ${event.classId}');
-      
       final response = await _repository.getClassStudents(
         levelId: event.levelId,
         classId: event.classId,
@@ -33,12 +29,10 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
       
       if (response.success) {
         if (response.students.isEmpty) {
-          print('📭 لا يوجد طلاب في هذا الفصل');
           emit(const ClassStudentsEmpty(
             message: 'لا يوجد طلاب مسجلين في هذا الفصل',
           ));
         } else {
-          print('✅ تم جلب ${response.students.length} طالب بنجاح');
           emit(ClassStudentsLoaded(
             students: response.students,
             message: response.message,
@@ -46,11 +40,9 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
           ));
         }
       } else {
-        print('❌ فشل جلب طلاب الفصل: ${response.message}');
         emit(ClassStudentsError(message: response.message));
       }
     } catch (e) {
-      print('❌ خطأ في BLoC أثناء جلب طلاب الفصل: $e');
       emit(ClassStudentsError(
         message: 'حدث خطأ غير متوقع: ${e.toString()}',
       ));
@@ -65,9 +57,6 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
     try {
       emit(const ClassStudentsLoading());
       
-      print('🔍 بدء البحث عن طلاب...');
-      print('🔍 البحث عن: ${event.searchQuery}');
-      
       final response = await _repository.searchStudents(
         levelId: event.levelId,
         classId: event.classId,
@@ -76,13 +65,11 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
       
       if (response.success) {
         if (response.students.isEmpty) {
-          print('🔍 لم يتم العثور على طلاب مطابقين للبحث');
           emit(const ClassStudentsEmpty(
             message: 'لم يتم العثور على طلاب مطابقين للبحث',
             isSearchResult: true,
           ));
         } else {
-          print('✅ تم العثور على ${response.students.length} طالب');
           emit(ClassStudentsLoaded(
             students: response.students,
             message: response.message,
@@ -91,11 +78,9 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
           ));
         }
       } else {
-        print('❌ فشل البحث عن الطلاب: ${response.message}');
         emit(ClassStudentsError(message: response.message));
       }
     } catch (e) {
-      print('❌ خطأ في BLoC أثناء البحث عن الطلاب: $e');
       emit(ClassStudentsError(
         message: 'حدث خطأ أثناء البحث: ${e.toString()}',
       ));
@@ -116,8 +101,6 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
         emit(const ClassStudentsLoading());
       }
       
-      print('🔄 تحديث قائمة طلاب الفصل...');
-      
       final response = await _repository.getClassStudents(
         levelId: event.levelId,
         classId: event.classId,
@@ -129,7 +112,6 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
             message: 'لا يوجد طلاب مسجلين في هذا الفصل',
           ));
         } else {
-          print('✅ تم تحديث قائمة الطلاب: ${response.students.length} طالب');
           emit(ClassStudentsLoaded(
             students: response.students,
             message: 'تم تحديث قائمة الطلاب',
@@ -140,13 +122,11 @@ class ClassStudentsBloc extends Bloc<ClassStudentsEvent, ClassStudentsState> {
         emit(ClassStudentsError(message: response.message));
       }
     } catch (e) {
-      print('❌ خطأ في BLoC أثناء تحديث طلاب الفصل: $e');
       emit(ClassStudentsError(
         message: 'حدث خطأ أثناء التحديث: ${e.toString()}',
       ));
     }
   }
-
   /// معالجة حدث إعادة تعيين الحالة
   void _onResetClassStudents(
     ResetClassStudentsEvent event,

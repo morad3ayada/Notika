@@ -15,6 +15,9 @@ import '../../../data/models/exam_export_model.dart';
 import '../../../data/repositories/exam_export_repository.dart';
 import '../../../data/repositories/exam_schedule_repository.dart';
 import '../../../data/repositories/exam_questions_repository.dart';
+import '../../../utils/teacher_class_matcher.dart';
+import '../../../utils/server_data_mixin.dart';
+import '../../../logic/blocs/base/base_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ExamQuestionsScreen extends StatefulWidget {
@@ -25,7 +28,7 @@ class ExamQuestionsScreen extends StatefulWidget {
 }
 
 class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, ServerDataMixin<ExamQuestionsScreen> {
   @override
   bool get wantKeepAlive => true;
 
@@ -156,6 +159,12 @@ class _ExamQuestionsScreenState extends State<ExamQuestionsScreen>
     _examExportBloc = ExamExportBloc(sl<ExamExportRepository>());
     _examScheduleBloc = ExamScheduleBloc(sl<ExamScheduleRepository>());
     _examQuestionsBloc = ExamQuestionsBloc(sl<ExamQuestionsRepository>());
+  }
+
+  @override
+  Future<void> loadServerData() async {
+    // جلب البيانات من السيرفر عند الدخول للشاشة
+    _profileBloc.add(const FetchProfile());
   }
 
   // دالة لاختيار أي ملف

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -6,7 +7,6 @@ import '../../../utils/network_utils.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import '../../../providers/user_provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../logic/blocs/auth/auth_bloc.dart';
@@ -92,12 +92,20 @@ class _SignInScreenState extends State<SignInScreen> {
         if (state is AuthSuccess) {
           // Update Provider and navigate, keep visuals the same
           context.read<UserProvider>().updateUserData(state.response);
-          Navigator.of(context).pushReplacementNamed('/home');
-          if (state.response.message != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.response.message!)),
-            );
-          }
+          
+          // عرض رسالة تأكيد حفظ البيانات
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ تم تسجيل الدخول وحفظ البيانات بنجاح'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          
+          // الانتقال للصفحة الرئيسية
+          Future.delayed(const Duration(milliseconds: 500), () {
+            Navigator.of(context).pushReplacementNamed('/home');
+          });
         }
         if (state is AuthFailure) {
           ScaffoldMessenger.of(context).showSnackBar(

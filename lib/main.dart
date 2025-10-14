@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -14,17 +16,68 @@ import 'logic/blocs/auth/auth_state.dart';
 import 'logic/blocs/profile/profile_bloc.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/profile_repository.dart';
+import 'data/services/auth_service.dart';
+import 'config/api_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('ar', null);
-  setupDependencies();
+  
+  // معالجة جميع الأخطاء غير المعالجة في Flutter
+  FlutterError.onError = (FlutterErrorDetails details) {
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('⚠️ Flutter Error Caught:');
+    debugPrint('${details.exception}');
+    debugPrint('Stack: ${details.stack}');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // لا نوقف التطبيق - فقط نسجل الخطأ
+  };
 
-  // Check if user is already logged in
-  final authBloc = sl<AuthBloc>();
-  authBloc.add(const CheckSavedAuth());
+  // معالجة الأخطاء في Platform (للأخطاء خارج Flutter framework)
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('⚠️ Platform Error Caught:');
+    debugPrint('Error: $error');
+    debugPrint('Stack: $stack');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    return true; // نعيد true لمنع crash التطبيق
+  };
 
-  runApp(MyApp());
+  // معالجة الأخطاء في async zones
+  runZonedGuarded(() async {
+    await initializeDateFormatting('ar', null);
+    setupDependencies();
+
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('🚀 Notika Teacher App Starting...');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    // التحقق الشامل من البيانات المحفوظة
+    final isValidAuth = await AuthService.validateSavedAuth();
+    debugPrint('📊 Auth validation result: ${isValidAuth ? "VALID ✓" : "INVALID ✗"}');
+    
+    if (isValidAuth) {
+      // تحميل organization URL للمستخدم المسجل
+      await AuthService.loadSavedOrganizationUrl();
+      debugPrint('✅ Restoring user session...');
+    } else {
+      // مسح أي organization URL قديم
+      ApiConfig.resetBaseUrl();
+      debugPrint('⚠️ No valid session - showing login screen');
+    }
+
+    debugPrint('🎯 AuthBloc will be initialized by BlocProvider');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    runApp(const MyApp());
+  }, (error, stackTrace) {
+    // معالجة الأخطاء التي تحدث في async operations
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('⚠️ Async Error Caught:');
+    debugPrint('Error: $error');
+    debugPrint('Stack: $stackTrace');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // لا نوقف التطبيق - فقط نسجل الخطأ
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -111,17 +164,7 @@ class MyApp extends StatelessWidget {
             ), dialogTheme: DialogThemeData(backgroundColor: Color(0xFF1A1F35)),
           ),
           themeMode: currentMode,
-          home: BlocBuilder<AuthBloc, AuthState>(
-            builder: (context, state) {
-              if (state is AuthSuccess) {
-                // User is logged in, go to main screen
-                return MainScreen();
-              } else {
-                // User is not logged in, show sign in screen
-                return SignInScreen();
-              }
-            },
-          ),
+          home: AuthInitializer(),
           routes: {
             '/home': (context) => MainScreen(),
           },
@@ -129,6 +172,44 @@ class MyApp extends StatelessWidget {
       },
     ),
       ),
+    );
+  }
+}
+
+class AuthInitializer extends StatefulWidget {
+  const AuthInitializer({super.key});
+
+  @override
+  State<AuthInitializer> createState() => _AuthInitializerState();
+}
+
+class _AuthInitializerState extends State<AuthInitializer> {
+  @override
+  void initState() {
+    super.initState();
+    // إرسال حدث فحص المصادقة المحفوظة بعد إعداد BlocProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthBloc>().add(const CheckSavedAuth());
+      debugPrint('🎯 CheckSavedAuth event dispatched');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, state) {
+        debugPrint('🎨 Building home - State: ${state.runtimeType}');
+        
+        if (state is AuthSuccess) {
+          // User is logged in, go to main screen
+          debugPrint('✅ MainScreen');
+          return MainScreen();
+        } else {
+          // User is not logged in, show sign in screen
+          debugPrint('⚠️ SignInScreen');
+          return SignInScreen();
+        }
+      },
     );
   }
 }

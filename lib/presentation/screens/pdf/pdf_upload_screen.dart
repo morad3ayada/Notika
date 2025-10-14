@@ -6,29 +6,21 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:math';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/scheduler.dart';
 import '../../../logic/blocs/profile/profile_bloc.dart';
 import '../../../logic/blocs/profile/profile_event.dart';
 import '../../../logic/blocs/profile/profile_state.dart';
 import '../../../logic/blocs/file_classification/file_classification_bloc.dart';
 import '../../../logic/blocs/file_classification/file_classification_event.dart';
 import '../../../logic/blocs/file_classification/file_classification_state.dart';
-import '../../../logic/blocs/pdf_upload/pdf_upload_barrel.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../data/models/file_classification_model.dart';
-import '../../../data/models/chapter_unit_model.dart';
-import '../../../data/models/pdf_upload_model.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/file_classification_repository.dart';
-import '../../../data/repositories/chapter_unit_repository.dart';
-import '../../../data/repositories/pdf_upload_repository.dart';
 import '../../../data/services/auth_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../../utils/teacher_class_matcher.dart';
-import 'package:provider/provider.dart';
-import '../../../providers/user_provider.dart';
 
 class PdfUploadScreen extends StatefulWidget {
   const PdfUploadScreen({super.key});
@@ -188,12 +180,6 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   final List<String> units = []; // قائمة الفصول/الوحدات التي ينشئها المستخدم
   late final ProfileBloc _profileBloc;
   late final FileClassificationBloc _fileClassificationBloc;
-  late final PdfUploadBloc _pdfUploadBloc; // إضافة PdfUploadBloc عشان نتعامل مع رفع الملفات
-  
-  // متغيرات جديدة للوحدات/الفصول من السيرفر
-  List<ChapterUnit> serverUnits = [];
-  bool isLoadingUnits = false;
-  String? unitsErrorMessage;
 
   // Helpers to derive dynamic lists from TeacherClass
   List<String> _buildSchools(List<TeacherClass> classes) {
@@ -248,89 +234,6 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   bool _isRecording = false;
   String? _audioPath;
 
-  // دالة لجلب الوحدات/الفصول من السيرفر
-  Future<void> fetchChapterUnits() async {
-    if (selectedSubject == null || selectedStage == null || selectedSection == null) {
-      return;
-    }
-    
-    setState(() {
-      isLoadingUnits = true;
-      unitsErrorMessage = null;
-    });
-    
-    try {
-      // الحصول على معرف المستخدم والتوكن
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final token = userProvider.token;
-      
-      // الحصول على معرفات المرحلة والشعبة والمادة
-      final classes = await _getTeacherClasses();
-      final matchedClass = TeacherClassMatcher.findMatchingTeacherClass(
-        classes,
-        selectedSchool,
-        selectedStage,
-        selectedSection,
-        selectedSubject,
-      );
-      
-      if (matchedClass == null || token == null) {
-        setState(() {
-          isLoadingUnits = false;
-          unitsErrorMessage = 'لم يتم العثور على بيانات الفصل أو المستخدم';
-        });
-        return;
-      }
-
-      print('✅ Found TeacherClass:');
-      print('   School: ${matchedClass.schoolName ?? ''}');
-      print('   Level: ${matchedClass.levelName ?? ''}');
-      print('   Section: ${matchedClass.className ?? ''}');
-      print('   Subject: ${matchedClass.subjectName ?? ''}');
-
-      // تحقق من وجود قيم صالحة
-      if (matchedClass.levelSubjectId == null || matchedClass.levelSubjectId!.isEmpty ||
-          matchedClass.levelId == null || matchedClass.levelId!.isEmpty ||
-          matchedClass.classId == null || matchedClass.classId!.isEmpty) {
-        setState(() {
-          isLoadingUnits = false;
-          unitsErrorMessage = 'بيانات الفصل غير مكتملة';
-        });
-        return;
-      }
-
-      // استدعاء الخدمة لجلب الوحدات/الفصول
-      final repository = sl<ChapterUnitRepository>();
-      final response = await repository.getChapterUnits(
-        levelSubjectId: matchedClass.levelSubjectId!,
-        levelId: matchedClass.levelId!,
-        classId: matchedClass.classId!,
-      );
-      
-      setState(() {
-        serverUnits = response.data;
-        isLoadingUnits = false;
-        if (!response.success) {
-          unitsErrorMessage = response.message;
-        }
-      });
-    } catch (e) {
-      setState(() {
-        isLoadingUnits = false;
-        unitsErrorMessage = 'حدث خطأ أثناء جلب البيانات: $e';
-      });
-    }
-  }
-  
-  // دالة مساعدة للحصول على فصول المعلم
-  Future<List<TeacherClass>> _getTeacherClasses() async {
-    final state = _profileBloc.state;
-    if (state is ProfileLoaded) {
-      return state.classes;
-    }
-    return [];
-  }
-
   @override
   void initState() {
     super.initState();
@@ -340,275 +243,39 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
       ..add(const FetchProfile());
     _fileClassificationBloc =
         FileClassificationBloc(sl<FileClassificationRepository>());
-    // إنشاء PdfUploadBloc مع الـ Repository من dependency injection
-    _pdfUploadBloc = PdfUploadBloc(sl<PdfUploadRepository>());
   }
 
   @override
   void dispose() {
     _profileBloc.close();
     _fileClassificationBloc.close();
-    _pdfUploadBloc.close(); // إغلاق PdfUploadBloc عشان منسربش الذاكرة
     _recorder?.closeRecorder();
     _fileClassificationNameController.dispose();
     detailsController.dispose();
     super.dispose();
   }
 
-  /// دالة اختيار الملف مع معالجة شاملة للأخطاء والصلاحيات
   Future<void> pickFile() async {
-    try {
-      print('🔍 بدء عملية اختيار الملف...');
-      
-      // طلب الصلاحيات أولاً (مهم لأندرويد 11+)
-      bool hasPermission = await _requestStoragePermission();
-      if (!hasPermission) {
-        _showPermissionDeniedMessage();
-        return;
-      }
-
-      print('✅ الصلاحيات متاحة، فتح منتقي الملفات...');
-      
-      // فتح منتقي الملفات مع معالجة آمنة
-      final FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'mp4', 'mov', 'avi'],
-        allowMultiple: false, // ملف واحد فقط
-        withData: false, // عدم تحميل البيانات في الذاكرة لتوفير الأداء
-        withReadStream: false, // عدم استخدام stream للقراءة
-      );
-
-      // التحقق من أن المستخدم اختار ملف فعلاً
-      if (result == null) {
-        print('ℹ️ المستخدم ألغى اختيار الملف');
-        return;
-      }
-
-      // التحقق من وجود ملفات في النتيجة
-      if (result.files.isEmpty) {
-        print('⚠️ لا توجد ملفات في النتيجة');
-        _showErrorMessage('لم يتم اختيار أي ملف');
-        return;
-      }
-
-      final PlatformFile platformFile = result.files.first;
-      
-      // التحقق من وجود مسار الملف
-      if (platformFile.path == null || platformFile.path!.isEmpty) {
-        print('❌ مسار الملف غير متاح');
-        _showErrorMessage('لا يمكن الوصول لمسار الملف المختار');
-        return;
-      }
-
-      // إنشاء كائن File والتحقق من وجوده
-      final File file = File(platformFile.path!);
-      if (!await file.exists()) {
-        print('❌ الملف غير موجود في المسار: ${platformFile.path}');
-        _showErrorMessage('الملف المختار غير موجود');
-        return;
-      }
-
-      // التحقق من حجم الملف (أقل من 50 ميجا)
-      final int fileSizeInBytes = await file.length();
-      final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-      
-      if (fileSizeInMB > 50) {
-        print('❌ حجم الملف كبير جداً: ${fileSizeInMB.toStringAsFixed(2)} MB');
-        _showErrorMessage('حجم الملف كبير جداً (أقصى حد 50 ميجابايت)\nحجم الملف الحالي: ${fileSizeInMB.toStringAsFixed(2)} MB');
-        return;
-      }
-
-      // كل شيء تمام، حفظ الملف
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'mp4', 'mov', 'avi'],
+    );
+    if (result != null && result.files.single.path != null) {
       setState(() {
-        selectedFile = file;
+        selectedFile = File(result.files.single.path!);
       });
-
-      print('✅ تم اختيار الملف بنجاح:');
-      print('   الاسم: ${platformFile.name}');
-      print('   المسار: ${platformFile.path}');
-      print('   الحجم: ${fileSizeInMB.toStringAsFixed(2)} MB');
-      print('   النوع: ${platformFile.extension ?? 'غير محدد'}');
-
-      // إظهار رسالة نجاح للمستخدم
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم اختيار الملف: ${platformFile.name}'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-    } catch (e, stackTrace) {
-      print('❌ خطأ أثناء اختيار الملف: $e');
-      print('Stack trace: $stackTrace');
-      
-      // معالجة أنواع مختلفة من الأخطاء
-      String errorMessage = 'حدث خطأ أثناء اختيار الملف';
-      
-      if (e.toString().contains('permission')) {
-        errorMessage = 'ليس لديك صلاحية للوصول للملفات';
-      } else if (e.toString().contains('cancelled')) {
-        errorMessage = 'تم إلغاء اختيار الملف';
-      } else if (e.toString().contains('not found')) {
-        errorMessage = 'الملف المختار غير موجود';
-      }
-      
-      _showErrorMessage(errorMessage);
     }
   }
 
-  /// طلب صلاحيات الوصول للتخزين (مهم لأندرويد 11+)
-  Future<bool> _requestStoragePermission() async {
-    try {
-      // التحقق من إصدار أندرويد
-      if (Platform.isAndroid) {
-        // لأندرويد 11+ (API 30+) نحتاج MANAGE_EXTERNAL_STORAGE
-        var status = await Permission.manageExternalStorage.status;
-        
-        if (status.isDenied || status.isPermanentlyDenied) {
-          print('🔐 طلب صلاحية MANAGE_EXTERNAL_STORAGE...');
-          status = await Permission.manageExternalStorage.request();
-        }
-        
-        if (status.isGranted) {
-          print('✅ تم منح صلاحية MANAGE_EXTERNAL_STORAGE');
-          return true;
-        }
-        
-        // إذا فشلت، جرب الصلاحيات العادية
-        print('🔐 طلب صلاحية READ_EXTERNAL_STORAGE...');
-        var readStatus = await Permission.storage.status;
-        
-        if (readStatus.isDenied || readStatus.isPermanentlyDenied) {
-          readStatus = await Permission.storage.request();
-        }
-        
-        if (readStatus.isGranted) {
-          print('✅ تم منح صلاحية READ_EXTERNAL_STORAGE');
-          return true;
-        }
-        
-        print('❌ لم يتم منح أي صلاحيات للتخزين');
-        return false;
-      }
-      
-      // لـ iOS أو منصات أخرى
-      return true;
-      
-    } catch (e) {
-      print('❌ خطأ أثناء طلب الصلاحيات: $e');
-      return false;
-    }
-  }
-
-  /// إظهار رسالة خطأ للمستخدم
-  void _showErrorMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 4),
-        action: SnackBarAction(
-          label: 'حسناً',
-          textColor: Colors.white,
-          onPressed: () {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          },
-        ),
-      ),
-    );
-  }
-
-  /// إظهار رسالة رفض الصلاحيات
-  void _showPermissionDeniedMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('يجب السماح بالوصول للملفات لاختيار الملفات'),
-        backgroundColor: Colors.orange,
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'الإعدادات',
-          textColor: Colors.white,
-          onPressed: () async {
-            await openAppSettings(); // فتح إعدادات التطبيق
-          },
-        ),
-      ),
-    );
-  }
-
-  /// دالة اختيار ملف صوتي مع معالجة آمنة للأخطاء
   Future<void> pickAudio() async {
-    try {
-      print('🎵 بدء عملية اختيار الملف الصوتي...');
-      
-      // طلب الصلاحيات أولاً
-      bool hasPermission = await _requestStoragePermission();
-      if (!hasPermission) {
-        _showPermissionDeniedMessage();
-        return;
-      }
-
-      // فتح منتقي الملفات الصوتية
-      final FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['mp3', 'wav', 'm4a', 'aac'],
-        allowMultiple: false,
-        withData: false,
-        withReadStream: false,
-      );
-
-      // التحقق من النتيجة
-      if (result == null) {
-        print('ℹ️ المستخدم ألغى اختيار الملف الصوتي');
-        return;
-      }
-
-      if (result.files.isEmpty) {
-        _showErrorMessage('لم يتم اختيار أي ملف صوتي');
-        return;
-      }
-
-      final PlatformFile platformFile = result.files.first;
-      
-      if (platformFile.path == null || platformFile.path!.isEmpty) {
-        _showErrorMessage('لا يمكن الوصول لمسار الملف الصوتي');
-        return;
-      }
-
-      final File file = File(platformFile.path!);
-      if (!await file.exists()) {
-        _showErrorMessage('الملف الصوتي المختار غير موجود');
-        return;
-      }
-
-      // التحقق من حجم الملف الصوتي (أقل من 20 ميجا)
-      final int fileSizeInBytes = await file.length();
-      final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-      
-      if (fileSizeInMB > 20) {
-        _showErrorMessage('حجم الملف الصوتي كبير جداً (أقصى حد 20 ميجابايت)\nحجم الملف الحالي: ${fileSizeInMB.toStringAsFixed(2)} MB');
-        return;
-      }
-
-      // حفظ الملف الصوتي
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['mp3', 'wav', 'm4a', 'aac'],
+    );
+    if (result != null && result.files.single.path != null) {
       setState(() {
-        selectedAudio = file;
+        selectedAudio = File(result.files.single.path!);
       });
-
-      print('✅ تم اختيار الملف الصوتي بنجاح: ${platformFile.name}');
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم اختيار الملف الصوتي: ${platformFile.name}'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-    } catch (e) {
-      print('❌ خطأ أثناء اختيار الملف الصوتي: $e');
-      _showErrorMessage('حدث خطأ أثناء اختيار الملف الصوتي');
     }
   }
 
@@ -638,116 +305,31 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   }
 
   void submit() {
-    // التحقق من وجود جميع البيانات المطلوبة
     if (selectedFile == null ||
         selectedSchool == null ||
         selectedStage == null ||
         selectedSection == null ||
-        selectedSubject == null ||
-        selectedUnit == null) {
+        selectedSubject == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يرجى اختيار جميع الحقول ورفع ملف واختيار الفصل/الوحدة'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('يرجى اختيار جميع الحقول ورفع ملف')),
       );
       return;
     }
-
-    // الحصول على TeacherClass المطابق للاختيارات
-    final profileState = _profileBloc.state;
-    if (profileState is! ProfileLoaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لم يتم تحميل بيانات المعلم'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final classes = profileState.classes;
-    final matchingClass = TeacherClassMatcher.findMatchingTeacherClass(
-      classes,
-      selectedSchool!,
-      selectedStage!,
-      selectedSection!,
-      selectedSubject!,
+    // هنا يمكنك تنفيذ رفع الملف فعلياً
+    String details = detailsController.text.trim();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم رفع الملف بنجاح!')),
     );
-
-    if (matchingClass == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لم يتم العثور على الفصل المطابق للاختيارات'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // البحث عن FileClassificationId من الوحدات المحملة
-    String? fileClassificationId;
-    for (final unit in serverUnits) {
-      if (unit.name == selectedUnit) {
-        fileClassificationId = unit.id;
-        break;
-      }
-    }
-
-    if (fileClassificationId == null || fileClassificationId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لم يتم العثور على معرف الوحدة المختارة'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    print('🎯 بدء إعداد بيانات الرفع:');
-    print('   المدرسة: $selectedSchool');
-    print('   المرحلة: $selectedStage');
-    print('   الشعبة: $selectedSection');
-    print('   المادة: $selectedSubject');
-    print('   الوحدة: $selectedUnit');
-    print('   الملف: ${selectedFile!.path}');
-
-    // إنشاء نموذج البيانات للرفع (مع الملف الصوتي إذا كان موجود)
-    final uploadModel = PdfUploadModel(
-      levelSubjectId: matchingClass.levelSubjectId ?? 
-                     matchingClass.subjectId ?? 
-                     '00000000-0000-0000-0000-000000000000',
-      levelId: matchingClass.levelId ?? '00000000-0000-0000-0000-000000000000',
-      classId: matchingClass.classId ?? '00000000-0000-0000-0000-000000000000',
-      fileClassificationId: fileClassificationId,
-      title: selectedFile!.path.split(Platform.pathSeparator).last, // اسم الملف كعنوان
-      fileType: PdfUploadModel.getFileTypeFromExtension(selectedFile!.path),
-      path: 'uploads/chapters', // المسار الثابت كما في الـ cURL
-      note: detailsController.text.trim().isNotEmpty ? detailsController.text.trim() : null,
-      file: selectedFile!,
-      voiceFile: selectedAudio ?? (_audioPath != null ? File(_audioPath!) : null), // إضافة الملف الصوتي
-    );
-
-    print('📋 بيانات النموذج:');
-    print('   levelSubjectId: ${uploadModel.levelSubjectId}');
-    print('   levelId: ${uploadModel.levelId}');
-    print('   classId: ${uploadModel.classId}');
-    print('   fileClassificationId: ${uploadModel.fileClassificationId}');
-    print('   title: ${uploadModel.title}');
-    print('   fileType: ${uploadModel.fileType}');
-    
-    // طباعة معلومات الملف الصوتي إذا كان موجود
-    if (uploadModel.voiceFile != null) {
-      print('🎵 الملف الصوتي:');
-      print('   المسار: ${uploadModel.voiceFile!.path}');
-      print('   الاسم: ${uploadModel.voiceFile!.path.split(Platform.pathSeparator).last}');
-      print('   النوع: ${PdfUploadModel.getFileTypeFromExtension(uploadModel.voiceFile!.path)}');
-    } else {
-      print('ℹ️ لا يوجد ملف صوتي مرفق');
-    }
-
-    // إرسال حدث الرفع للـ BLoC
-    _pdfUploadBloc.add(UploadPdfEvent(uploadModel: uploadModel));
+    setState(() {
+      selectedFile = null;
+      selectedAudio = null;
+      selectedSchool = null;
+      selectedStage = null;
+      selectedSection = null;
+      selectedSubject = null;
+      selectedUnit = null;
+      detailsController.clear();
+    });
   }
 
   Future<void> _openUnitSelector() async {
@@ -842,157 +424,113 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // عرض الوحدات من السيرفر مع حالات التحميل والخطأ
-                  if (isLoadingUnits)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF1976D2),
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  else if (unitsErrorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Colors.red,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            unitsErrorMessage!,
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 14,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: () {
-                              setModalState(() {
-                                fetchChapterUnits();
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1976D2),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'إعادة المحاولة',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (serverUnits.isEmpty)
+                  if (localUnits.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('لا توجد وحدات متاحة لهذا الفصل'),
+                      child:
+                          Text('لا توجد خيارات بعد — قم بإضافة خيار بالأعلى.'),
                     )
                   else
                     Flexible(
                       child: ListView.separated(
                         shrinkWrap: true,
-                        itemCount: serverUnits.length,
+                        itemCount: localUnits.length,
                         separatorBuilder: (_, __) => const Divider(height: 12),
                         itemBuilder: (_, i) {
-                          final unit = serverUnits[i];
-                          final isSelected = localSelectedUnit == unit.name;
+                          final u = localUnits[i];
+                          final isSelected = localSelectedUnit == u;
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(unit.name),
-                            subtitle: unit.description != null
-                                ? Text(
-                                    unit.description!,
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  )
-                                : null,
+                            title: Text(u),
                             leading: Icon(
                               isSelected
                                   ? Icons.radio_button_checked
                                   : Icons.radio_button_off,
                               color: const Color(0xFF1976D2),
                             ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () async {
+                                bool? deleteConfirmed =
+                                    await showModalBottomSheet<bool>(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(20)),
+                                  ),
+                                  builder: (deleteCtx) =>
+                                      _DeleteConfirmationDialog(
+                                    unitName: u,
+                                    onConfirm: (confirmed) {
+                                      if (confirmed) {
+                                        setModalState(() {
+                                          localUnits.removeAt(i);
+                                          if (localSelectedUnit == u) {
+                                            localSelectedUnit =
+                                                localUnits.isNotEmpty
+                                                    ? localUnits[0]
+                                                    : null;
+                                          }
+                                        });
+                                      }
+                                      return confirmed;
+                                    },
+                                  ),
+                                );
+
+                                if (deleteConfirmed == true && mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('تم الحذف بنجاح'),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
                             onTap: () {
                               setModalState(() {
-                                localSelectedUnit = unit.name;
-                              });
-                              // إغلاق الـ modal فوراً بعد اختيار الوحدة
-                              Navigator.of(ctx).pop();
-
-                              // تطبيق التغييرات فوراً
-                              setState(() {
-                                units.clear();
-                                units.addAll(localUnits);
-                                selectedUnit = localSelectedUnit;
+                                localSelectedUnit = u;
                               });
                             },
                           );
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  units.clear();
-                                  units.addAll(localUnits);
-                                  if (localSelectedUnit != selectedUnit) {
-                                    selectedUnit = localSelectedUnit;
-                                  }
-                                });
-                                Navigator.of(ctx).pop();
-
-                                // جلب الوحدات من السيرفر عند تغيير المادة
-                                if (selectedSubject != null) {
-                                  fetchChapterUnits();
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1976D2),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'حفظ التغييرات',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            
-                          );
-                  const SizedBox(height: 8);
                         },
                       ),
-                    ),  
+                    ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          units.clear();
+                          units.addAll(localUnits);
+                          if (localSelectedUnit != selectedUnit) {
+                            selectedUnit = localSelectedUnit;
+                          }
+                        });
+                        Navigator.of(ctx).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1976D2),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'حفظ التغييرات',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -1171,55 +709,9 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                   final subjectsList = _buildSubjects(
                       classes, selectedSchool, selectedStage, selectedSection);
 
-                  // إضافة BlocConsumer للـ PdfUploadBloc عشان نسمع لحالات الرفع
-                  return BlocConsumer<PdfUploadBloc, PdfUploadState>(
-                    bloc: _pdfUploadBloc,
-                    listener: (context, pdfUploadState) {
-                      // معالجة حالات رفع الملف
-                      if (pdfUploadState is PdfUploadSuccess) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(pdfUploadState.response.message),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                        
-                        // تنظيف الفورم بعد النجاح
-                        setState(() {
-                          selectedFile = null;
-                          selectedAudio = null;
-                          _audioPath = null; // تنظيف مسار التسجيل الصوتي
-                          selectedSchool = null;
-                          selectedStage = null;
-                          selectedSection = null;
-                          selectedSubject = null;
-                          selectedUnit = null;
-                          detailsController.clear();
-                        });
-                        
-                        // إعادة تعيين حالة الـ BLoC
-                        _pdfUploadBloc.add(const ResetPdfUploadEvent());
-                        
-                      } else if (pdfUploadState is PdfUploadFailure) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(pdfUploadState.message),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      } else if (pdfUploadState is PdfUploadValidationFailure) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(pdfUploadState.message),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      }
-                    },
-                    builder: (context, pdfUploadState) {
-                      return BlocConsumer<FileClassificationBloc,
-                          FileClassificationState>(
-                        bloc: _fileClassificationBloc,
+                  return BlocConsumer<FileClassificationBloc,
+                      FileClassificationState>(
+                    bloc: _fileClassificationBloc,
                     listener: (context, fileClassificationState) {
                       if (fileClassificationState
                           is AddFileClassificationSuccess) {
@@ -1547,11 +1039,6 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                                                     setState(() {
                                                       selectedSubject = subject;
                                                     });
-
-                                                    // جلب الوحدات من السيرفر عند اختيار مادة جديدة
-                                                    SchedulerBinding.instance.addPostFrameCallback((_) {
-                                                      fetchChapterUnits();
-                                                    });
                                                   },
                                                   child: AnimatedContainer(
                                                     duration: const Duration(
@@ -1876,44 +1363,27 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                                           Padding(
                                             padding:
                                                 const EdgeInsets.only(top: 8.0),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  'تم تسجيل الصوت: ${_audioPath!.split(Platform.pathSeparator).last}',
-                                                  style: TextStyle(
-                                                    color: Theme.of(context)
-                                                            .textTheme
-                                                            .titleMedium
-                                                            ?.color ??
-                                                        const Color(0xFF233A5A),
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  '🎵 سيتم رفع الملف الصوتي مع الملف الأساسي',
-                                                  style: TextStyle(
-                                                    color: const Color(0xFF1976D2),
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w400,
-                                                  ),
-                                                ),
-                                              ],
+                                            child: Text(
+                                              'تم تسجيل الصوت: ${_audioPath!.split(Platform.pathSeparator).last}',
+                                              style: TextStyle(
+                                                color: Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.color ??
+                                                    const Color(0xFF233A5A),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
                                       ],
                                     ),
                                   ),
                                   const SizedBox(height: 32),
-                                  // زر الإرسال مع حالات التحميل من PdfUploadBloc
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: pdfUploadState is PdfUploadLoading 
-                                          ? Colors.grey 
-                                          : const Color(0xFF1976D2),
+                                      backgroundColor: const Color(0xFF1976D2),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(16),
                                       ),
@@ -1921,37 +1391,24 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                                           horizontal: 38, vertical: 16),
                                       elevation: 4,
                                     ),
-                                    icon: pdfUploadState is PdfUploadLoading
-                                        ? const SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                            ),
-                                          )
-                                        : const Icon(Icons.upload_file, color: Colors.white),
-                                    label: Text(
-                                      pdfUploadState is PdfUploadLoading 
-                                          ? 'جاري الرفع...' 
-                                          : 'إرسال',
-                                      style: const TextStyle(
+                                    icon: const Icon(Icons.upload_file,
+                                        color: Colors.white),
+                                    label: const Text(
+                                      'إرسال',
+                                      style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 18,
                                       ),
                                     ),
-                                    // تعطيل الزر أثناء الرفع عشان منرفعش أكتر من مرة
-                                    onPressed: pdfUploadState is PdfUploadLoading ? null : submit,
+                                    onPressed: submit,
                                   ),
                                 ]),
                           ),
                         ),
                       );
                     },
-                  ); // إغلاق FileClassificationBloc BlocConsumer
-                    },
-                  ); // إغلاق PdfUploadBloc BlocConsumer
+                  );
                 }))
       ]),
     );

@@ -8,6 +8,8 @@ import '../../../data/models/profile_models.dart';
 import '../../../data/models/assignment_model.dart';
 import '../../../data/repositories/assignment_repository.dart';
 import '../../../utils/teacher_class_matcher.dart';
+import '../../../utils/server_data_mixin.dart';
+import '../../../logic/blocs/base/base_state.dart';
 import '../../../di/injector.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../home/home_screen.dart';
@@ -19,7 +21,7 @@ class AssignmentsScreen extends StatefulWidget {
   State<AssignmentsScreen> createState() => _AssignmentsScreenState();
 }
 
-class _AssignmentsScreenState extends State<AssignmentsScreen> {
+class _AssignmentsScreenState extends State<AssignmentsScreen> with ServerDataMixin<AssignmentsScreen> {
   String? selectedSchool;
   String? selectedStage;
   String? selectedSection;
@@ -73,17 +75,20 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   // حقول الواجب الجديد
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
-  final TextEditingController _contentTypeController = TextEditingController();
-  final TextEditingController _maxGradeController = TextEditingController();
   DateTime? _selectedDeadline;
   final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
-    _profileBloc = ProfileBloc(sl<ProfileRepository>())
-      ..add(const FetchProfile());
+    _profileBloc = ProfileBloc(sl<ProfileRepository>())..add(const FetchProfile());
     _assignmentBloc = AssignmentBloc(sl<AssignmentRepository>());
+  }
+
+  @override
+  Future<void> loadServerData() async {
+    // جلب البيانات من السيرفر عند الدخول للشاشة
+    _profileBloc.add(const FetchProfile());
   }
 
   Future<void> _selectDeadline() async {
@@ -175,8 +180,8 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
       classId: matchingClass.classId ?? '',
       title: _titleController.text.trim(),
       deadline: _selectedDeadline!.toIso8601String(),
-      maxGrade: int.tryParse(_maxGradeController.text) ?? 0,
-      contentType: _contentTypeController.text.trim().isEmpty ? 'text' : _contentTypeController.text.trim(),
+      maxGrade: 0,
+      contentType: 'text',
       content: _contentController.text.trim(),
     );
 
@@ -186,8 +191,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
   void _clearForm() {
     _titleController.clear();
     _contentController.clear();
-    _contentTypeController.clear();
-    _maxGradeController.clear();
     setState(() {
       _selectedDeadline = null;
     });
@@ -537,100 +540,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            // نوع المحتوى
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              child: TextFormField(
-                                controller: _contentTypeController,
-                                keyboardType: TextInputType.text,
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.color,
-                                ),
-                                decoration: InputDecoration(
-                                  labelText: 'نوع المحتوى (اختياري)',
-                                  hintText: 'مثال: نص، صورة، فيديو',
-                                  labelStyle: TextStyle(
-                                      color: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.color ??
-                                          const Color(0xFF233A5A)),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFFE0E0E0)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFFE0E0E0)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFF1976D2), width: 2),
-                                  ),
-                                  filled: true,
-                                  fillColor: Theme.of(context).cardColor,
-                                  prefixIcon: const Icon(Icons.category,
-                                      color: Color(0xFF1976D2)),
-                                ),
-                              ),
-                            ),
-                            // الدرجة القصوى
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              child: TextFormField(
-                                controller: _maxGradeController,
-                                keyboardType: TextInputType.number,
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.color,
-                                ),
-                                decoration: InputDecoration(
-                                  labelText: 'الدرجة القصوى *',
-                                  labelStyle: TextStyle(
-                                      color: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.color ??
-                                          const Color(0xFF233A5A)),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFFE0E0E0)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFFE0E0E0)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFF1976D2), width: 2),
-                                  ),
-                                  filled: true,
-                                  fillColor: Theme.of(context).cardColor,
-                                  prefixIcon: const Icon(Icons.grade,
-                                      color: Color(0xFF1976D2)),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'أدخل الدرجة القصوى';
-                                  }
-                                  if (int.tryParse(value) == null) {
-                                    return 'أدخل رقم صحيح';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
                             // موعد التسليم
                             Container(
                               margin: const EdgeInsets.only(bottom: 16),
@@ -785,8 +694,6 @@ class _AssignmentsScreenState extends State<AssignmentsScreen> {
     _assignmentBloc.close();
     _titleController.dispose();
     _contentController.dispose();
-    _contentTypeController.dispose();
-    _maxGradeController.dispose();
     super.dispose();
   }
 }

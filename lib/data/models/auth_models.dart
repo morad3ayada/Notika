@@ -15,6 +15,41 @@ class LoginRequest extends Equatable {
   List<Object?> get props => [username, password];
 }
 
+/// Response من Central Authentication Server للحصول على URL المنظمة
+class OrganizationUrlResponse extends Equatable {
+  final String organizationUrl;
+  final String? organizationName;
+  final String? message;
+
+  const OrganizationUrlResponse({
+    required this.organizationUrl,
+    this.organizationName,
+    this.message,
+  });
+
+  factory OrganizationUrlResponse.fromJson(Map<String, dynamic> json) {
+    // دعم تنسيقات مختلفة من السيرفر
+    final url = json['websiteUrl'] ?? 
+                json['organizationUrl'] ?? 
+                json['url'] ?? 
+                json['organizationBaseUrl'] ?? 
+                json['baseUrl'];
+    
+    if (url == null) {
+      throw const FormatException('Missing organization URL in response');
+    }
+
+    return OrganizationUrlResponse(
+      organizationUrl: url.toString(),
+      organizationName: json['organizationName']?.toString() ?? json['name']?.toString(),
+      message: json['message']?.toString(),
+    );
+  }
+
+  @override
+  List<Object?> get props => [organizationUrl, organizationName, message];
+}
+
 class Organization extends Equatable {
   final String id;
   final String name;

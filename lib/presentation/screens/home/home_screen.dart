@@ -562,37 +562,33 @@ class HomeScreenContent extends StatelessWidget {
                                           vertical: 16.0,
                                         ),
                                         child: Column(
-                                          mainAxisSize: MainAxisSize.min,
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            SizedBox(height: 18), // Space for the icon
-                                            Flexible(
-                                              child: Text(
-                                                card["title"],
-                                                style: TextStyle(
-                                                  color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13.5,
-                                                  height: 1.0,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
+                                            SizedBox(height: 24), // Space for the icon
+                                            Text(
+                                              card["title"],
+                                              style: TextStyle(
+                                                color: Theme.of(context).textTheme.titleMedium?.color ?? Color(0xFF233A5A),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                height: 1.2,
                                               ),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            SizedBox(height: 20),
-                                            Flexible(
-                                              child: Text(
-                                                card["hint"] ?? '',
-                                                style: TextStyle(
-                                                  color: Color(0xFFB0BEC5),
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w400,
-                                                  height: 1.2,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
+                                            SizedBox(height: 8),
+                                            Text(
+                                              card["hint"] ?? '',
+                                              style: TextStyle(
+                                                color: Color(0xFFB0BEC5),
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w400,
+                                                height: 1.2,
                                               ),
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
                                         ),

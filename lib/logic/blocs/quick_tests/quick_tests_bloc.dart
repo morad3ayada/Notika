@@ -23,27 +23,22 @@ class QuickTestsBloc extends Bloc<QuickTestsEvent, QuickTestsState> {
     Emitter<QuickTestsState> emit,
   ) async {
     try {
-      print('QuickTestsBloc: Starting to add quick test');
       emit(const QuickTestsLoading());
 
       // Validate the request data
       final validationResult = _validateQuickTestRequest(event.request);
       if (validationResult != null) {
-        print('QuickTestsBloc: Validation failed: $validationResult');
         emit(QuickTestsFailure(validationResult));
         return;
       }
 
-      print('QuickTestsBloc: Validation passed, calling repository');
       final quickTest = await _repository.addQuickTest(event.request);
       
-      print('QuickTestsBloc: Quick test added successfully: ${quickTest.id}');
       emit(QuickTestsSuccess(
         quickTest: quickTest,
         message: 'تم إضافة الاختبار "${quickTest.title}" بنجاح',
       ));
     } catch (e) {
-      print('QuickTestsBloc: Error adding quick test: $e');
       String errorMessage = 'فشل في إضافة الاختبار';
       
       if (e is Exception) {
@@ -66,15 +61,12 @@ class QuickTestsBloc extends Bloc<QuickTestsEvent, QuickTestsState> {
     Emitter<QuickTestsState> emit,
   ) async {
     try {
-      print('QuickTestsBloc: Loading quick tests');
       emit(const QuickTestsLoading());
 
       final quickTests = await _repository.getQuickTests();
       
-      print('QuickTestsBloc: Loaded ${quickTests.length} quick tests');
       emit(QuickTestsLoaded(quickTests));
     } catch (e) {
-      print('QuickTestsBloc: Error loading quick tests: $e');
       String errorMessage = 'فشل في تحميل الاختبارات';
       
       if (e is Exception) {
@@ -96,14 +88,10 @@ class QuickTestsBloc extends Bloc<QuickTestsEvent, QuickTestsState> {
   ) async {
     // Same as load but without showing loading state if already loaded
     try {
-      print('QuickTestsBloc: Refreshing quick tests');
-      
       final quickTests = await _repository.getQuickTests();
       
-      print('QuickTestsBloc: Refreshed ${quickTests.length} quick tests');
       emit(QuickTestsLoaded(quickTests));
     } catch (e) {
-      print('QuickTestsBloc: Error refreshing quick tests: $e');
       String errorMessage = 'فشل في تحديث الاختبارات';
       
       if (e is Exception) {
@@ -123,7 +111,6 @@ class QuickTestsBloc extends Bloc<QuickTestsEvent, QuickTestsState> {
     ResetQuickTestsEvent event,
     Emitter<QuickTestsState> emit,
   ) {
-    print('QuickTestsBloc: Resetting state');
     emit(const QuickTestsInitial());
   }
 
@@ -131,15 +118,12 @@ class QuickTestsBloc extends Bloc<QuickTestsEvent, QuickTestsState> {
     ValidateQuickTestEvent event,
     Emitter<QuickTestsState> emit,
   ) {
-    print('QuickTestsBloc: Validating quick test data');
     emit(const QuickTestsValidating());
 
     final validationResult = _validateQuickTestRequest(event.request);
     if (validationResult != null) {
-      print('QuickTestsBloc: Validation failed: $validationResult');
       emit(QuickTestsValidationFailure(validationResult));
     } else {
-      print('QuickTestsBloc: Validation passed');
       emit(const QuickTestsValidationSuccess());
     }
   }
@@ -192,7 +176,6 @@ class QuickTestsBloc extends Bloc<QuickTestsEvent, QuickTestsState> {
         return 'عدد الأسئلة لا يطابق عدد الإجابات';
       }
     } catch (e) {
-      print('QuickTestsBloc: JSON validation error: $e');
       return 'خطأ في تنسيق الأسئلة أو الإجابات';
     }
 

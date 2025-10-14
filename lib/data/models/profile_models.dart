@@ -199,6 +199,9 @@ class TeacherClass extends Equatable {
   });
 
   factory TeacherClass.fromJson(Map<String, dynamic> json) {
+    print('📦 TeacherClass.fromJson:');
+    print('   - Raw JSON keys: ${json.keys.join(", ")}');
+    
     final teacherClass = TeacherClass(
       schoolId: json['schoolId']?.toString(),
       schoolName: json['schoolName']?.toString()?.trim(),
@@ -211,9 +214,12 @@ class TeacherClass extends Equatable {
       levelSubjectId: json['levelSubjectId']?.toString(),
     );
 
-    // Logging للتشخيص فقط في وضع التطوير
-    // هذا الكود تم إزالته لحل مشكلة debugPrint غير المتاح في هذا السياق
-    // استخدم print مباشرة أو قم بإزالة هذا الكود تماماً في الإنتاج
+    print('   ✅ Parsed TeacherClass:');
+    print('      School: ${teacherClass.schoolName} (ID: ${teacherClass.schoolId})');
+    print('      Level: ${teacherClass.levelName} (ID: ${teacherClass.levelId})');
+    print('      Class: ${teacherClass.className} (ID: ${teacherClass.classId})');
+    print('      Subject: ${teacherClass.subjectName} (ID: ${teacherClass.subjectId})');
+    print('      LevelSubjectId: ${teacherClass.levelSubjectId}');
 
     return teacherClass;
   }

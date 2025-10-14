@@ -13,12 +13,29 @@ class DailyGradesRepository {
   Future<DailyGradesResponse> updateBulkDailyGrades(
       BulkDailyGradesRequest request) async {
     try {
-      print('📝 تحديث الدرجات اليومية بشكل جماعي...');
-      print('🎓 levelId: ${request.levelId}');
-      print('🏫 classId: ${request.classId}');
-      print('📚 subjectId: ${request.subjectId}');
-      print('📅 date: ${request.date}');
-      print('👥 عدد الطلاب: ${request.studentsDailyGrades.length}');
+      print('═══════════════════════════════════════════════════════');
+      print('📝 تحديث الدرجات اليومية بشكل جماعي');
+      print('═══════════════════════════════════════════════════════');
+      print('📋 بيانات الطلب الأساسية:');
+      print('   - LevelId: ${request.levelId}');
+      print('   - ClassId: ${request.classId}');
+      print('   - SubjectId: ${request.subjectId}');
+      print('   - Date: ${request.date.toIso8601String()}');
+      print('   - عدد الطلاب: ${request.studentsDailyGrades.length}');
+      print('');
+      
+      // طباعة بيانات كل طالب
+      for (int i = 0; i < request.studentsDailyGrades.length; i++) {
+        final student = request.studentsDailyGrades[i];
+        print('📊 طالب #$i:');
+        print('   - StudentId: ${student.studentId}');
+        print('   - StudentClassSubjectId: ${student.studentClassSubjectId}');
+        print('   - عدد الدرجات: ${student.dailyGrades.length}');
+        for (var grade in student.dailyGrades) {
+          print('      * Grade: ${grade.grade}, TitleId: ${grade.dailyGradeTitleId}');
+        }
+      }
+      print('═══════════════════════════════════════════════════════');
 
       final token = await AuthService.getToken();
       if (token == null || token.isEmpty) {
@@ -29,7 +46,11 @@ class DailyGradesRepository {
       final uri = Uri.parse('$baseUrl/dailygrade/UpdateBulk');
 
       final body = request.toJson();
-      print('📦 البيانات المرسلة: ${jsonEncode(body)}');
+      print('');
+      print('📦 JSON الكامل المرسل:');
+      print(jsonEncode(body));
+      print('');
+      print('🚀 إرسال الطلب إلى: $uri');
 
       final response = await http.put(
         uri,
@@ -41,8 +62,11 @@ class DailyGradesRepository {
         body: jsonEncode(body),
       );
 
-      print('📊 كود الاستجابة: ${response.statusCode}');
-      print('📄 نص الاستجابة: ${response.body}');
+      print('');
+      print('📊 استجابة السيرفر:');
+      print('   - Status Code: ${response.statusCode}');
+      print('   - Response Body: ${response.body}');
+      print('');
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         print('✅ تم تحديث الدرجات بنجاح');
@@ -64,13 +88,47 @@ class DailyGradesRepository {
           message: 'تم حفظ الدرجات بنجاح',
         );
       } else if (response.statusCode == 400) {
-        String errorMessage = 'خطأ في البيانات المُرسلة';
+        print('❌ خطأ 400: Bad Request');
+        print('📄 Response Body الكامل:');
+        print(response.body);
+        
+        String errorMessage = 'خطأ في البيانات الأساسية';
         try {
           final errorData = jsonDecode(response.body);
-          errorMessage = errorData['message'] ?? errorMessage;
+          print('📋 Error Details:');
+          print(jsonEncode(errorData));
+          
+          // محاولة استخراج رسالة الخطأ
+          if (errorData is Map) {
+            errorMessage = errorData['message']?.toString() ?? 
+                          errorData['title']?.toString() ??
+                          errorData['detail']?.toString() ??
+                          errorData.toString();
+            
+            // إذا كان هناك errors array
+            if (errorData['errors'] != null) {
+              final errors = errorData['errors'];
+              print('🔍 Validation Errors:');
+              print(jsonEncode(errors));
+              
+              if (errors is Map) {
+                final errorsList = <String>[];
+                errors.forEach((key, value) {
+                  if (value is List) {
+                    errorsList.addAll(value.map((e) => '$key: $e'));
+                  } else {
+                    errorsList.add('$key: $value');
+                  }
+                });
+                if (errorsList.isNotEmpty) {
+                  errorMessage = 'أخطاء في البيانات:\n${errorsList.join('\n')}';
+                }
+              }
+            }
+          }
         } catch (e) {
-          errorMessage =
-              response.body.isNotEmpty ? response.body : errorMessage;
+          print('⚠️ خطأ في تحليل رسالة الخطأ: $e');
+          errorMessage = response.body.isNotEmpty ? response.body : errorMessage;
         }
         return DailyGradesResponse.error(errorMessage);
       } else if (response.statusCode == 401) {
@@ -111,14 +169,17 @@ class DailyGradesRepository {
     required String subjectId,
     required String levelId,
     required String classId,
-    required String date, // بصيغة "2-10-2025"
+    required String date, // بصيغة "2025-10-14"
   }) async {
     try {
-      print('📚 جلب درجات طلاب الفصل...');
-      print('📚 subjectId: $subjectId');
-      print('🎓 levelId: $levelId');
-      print('🏫 classId: $classId');
-      print('📅 date: $date');
+      print('═══════════════════════════════════════════════════════');
+      print('📚 جلب درجات طلاب الفصل');
+      print('═══════════════════════════════════════════════════════');
+      print('📋 Parameters:');
+      print('   - SubjectId: $subjectId');
+      print('   - LevelId: $levelId');
+      print('   - ClassId: $classId');
+      print('   - Date: $date');
 
       final token = await AuthService.getToken();
       if (token == null || token.isEmpty) {
@@ -129,7 +190,16 @@ class DailyGradesRepository {
       final uri = Uri.parse(
           '$baseUrl/dailygrade/ClassStudents?SubjectId=$subjectId&LevelId=$levelId&ClassId=$classId&Date=$date');
 
-      print('🌐 إرسال طلب إلى: $uri');
+      print('🌐 Full URL: $uri');
+      print('🔑 Token: ${token.substring(0, 50)}...');
+      print('');
+      print('📨 cURL equivalent:');
+      print("curl -X 'GET' \\");
+      print("  '$uri' \\");
+      print("  -H 'accept: text/plain' \\");
+      print("  -H 'Authorization: $token'");
+      print('');
+      print('🚀 إرسال الطلب...');
 
       final response = await http.get(
         uri,
@@ -140,7 +210,13 @@ class DailyGradesRepository {
       );
 
       print('📊 كود الاستجابة: ${response.statusCode}');
-      print('📄 نص الاستجابة: ${response.body.length > 500 ? response.body.substring(0, 500) + "..." : response.body}');
+      print('');
+      print('═══════════════════════════════════════════════════════');
+      print('📄 FULL RESPONSE FROM SERVER:');
+      print('═══════════════════════════════════════════════════════');
+      print(response.body);
+      print('═══════════════════════════════════════════════════════');
+      print('');
 
       if (response.statusCode == 200) {
         try {
@@ -165,14 +241,21 @@ class DailyGradesRepository {
           final List<StudentDailyGrades> studentGrades = [];
           for (int i = 0; i < studentsData.length; i++) {
             try {
-              print('📝 تحليل بيانات الطالب رقم $i: ${studentsData[i]}');
+              print('═══════════════════════════════════════════════════════');
+              print('📝 تحليل بيانات الطالب رقم $i');
+              print('📦 Raw JSON: ${jsonEncode(studentsData[i])}');
+              
               final studentGrade = StudentDailyGrades.fromJson(studentsData[i]);
               studentGrades.add(studentGrade);
-              print('✅ تم تحليل درجات طالب رقم $i: ${studentGrade.studentId}');
+              
+              print('✅ تم تحليل درجات طالب رقم $i بنجاح:');
+              print('   - studentId: ${studentGrade.studentId}');
+              print('   - studentClassSubjectId: ${studentGrade.studentClassSubjectId}');
               print('   - عدد dailyGrades: ${studentGrade.dailyGrades.length}');
               print('   - عدد quizzes: ${studentGrade.quizzes.length}');
               print('   - عدد assignments: ${studentGrade.assignments.length}');
               print('   - absenceTimes: ${studentGrade.absenceTimes}');
+              print('═══════════════════════════════════════════════════════');
             } catch (e, stackTrace) {
               print('⚠️ خطأ في تحليل درجات طالب رقم $i: $e');
               print('Stack trace: $stackTrace');

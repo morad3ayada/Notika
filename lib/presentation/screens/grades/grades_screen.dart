@@ -372,30 +372,46 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
 
     // التحقق من وجود جميع المعرفات المطلوبة
     if (matchingClass != null &&
-        matchingClass.levelSubjectId != null &&
+        matchingClass.subjectId != null &&
         matchingClass.levelId != null &&
-        matchingClass.classId != null) {
+        matchingClass.classId != null &&
+        matchingClass.levelSubjectId != null) {
       
+      print('═══════════════════════════════════════════════════════');
       print('✅ تم العثور على TeacherClass المطابق');
-      print('🔄 جلب عناوين الدرجات...');
-      print('📊 LevelSubjectId: ${matchingClass.levelSubjectId}');
-      print('📊 LevelId: ${matchingClass.levelId}');
-      print('📊 ClassId: ${matchingClass.classId}');
+      print('═══════════════════════════════════════════════════════');
+      print('📋 بيانات الفصل من Profile:');
+      print('   - School: ${matchingClass.schoolName}');
+      print('   - Stage: ${matchingClass.levelName}');
+      print('   - Section: ${matchingClass.className}');
+      print('   - Subject: ${matchingClass.subjectName}');
+      print('');
+      print('📊 المعرفات (IDs) التي سيتم إرسالها للسيرفر:');
+      print('   - SubjectId: ${matchingClass.subjectId}  ← من Profile');
+      print('   - LevelId: ${matchingClass.levelId}');
+      print('   - ClassId: ${matchingClass.classId}');
+      print('   - LevelSubjectId: ${matchingClass.levelSubjectId} (للعناوين فقط)');
+      print('');
+      
+      // تنسيق التاريخ بصيغة ISO 8601 (YYYY-MM-DD) كما يتوقع السيرفر
+      final formattedDate = '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+      print('📅 التاريخ المحدد:');
+      print('   - التاريخ الأصلي: $selectedDate');
+      print('   - التاريخ المنسق (YYYY-MM-DD): $formattedDate');
+      print('═══════════════════════════════════════════════════════');
+      print('');
 
       // جلب عناوين الدرجات
+      print('🔄 جلب عناوين الدرجات...');
       _dailyGradeTitlesBloc.add(LoadDailyGradeTitlesEvent(
         levelSubjectId: matchingClass.levelSubjectId!,
         levelId: matchingClass.levelId!,
         classId: matchingClass.classId!,
       ));
       
-      // جلب الدرجات تلقائياً لليوم الحالي
-      // تنسيق التاريخ بصيغة ISO 8601 (YYYY-MM-DD) كما يتوقع السيرفر
-      final formattedDate = '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
-      print('🔄 جلب الدرجات تلقائياً لليوم: $formattedDate');
-      
+      print('🔄 جلب درجات الطلاب...');
       _dailyGradesBloc.add(LoadClassStudentsGradesEvent(
-        subjectId: matchingClass.levelSubjectId!,
+        subjectId: matchingClass.subjectId!,  // ✅ subjectId الفعلي من Profile
         levelId: matchingClass.levelId!,
         classId: matchingClass.classId!,
         date: formattedDate,
@@ -403,6 +419,7 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
     } else {
       print('❌ لم يتم العثور على معرفات المرحلة والفصل والمادة');
       if (matchingClass != null) {
+        print('   SubjectId: ${matchingClass.subjectId}');
         print('   LevelSubjectId: ${matchingClass.levelSubjectId}');
         print('   LevelId: ${matchingClass.levelId}');
         print('   ClassId: ${matchingClass.classId}');
@@ -2211,8 +2228,15 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
       }
 
       if (dailyGrades.isNotEmpty) {
+        // البحث عن studentClassSubjectId من بيانات السيرفر
+        final serverStudent = _serverStudents.firstWhere(
+          (student) => student.id == studentId,
+          orElse: () => Student(id: studentId, fullName: 'غير محدد'),
+        );
+
         studentsDailyGrades.add(StudentDailyGrades(
           studentId: studentId,
+          studentClassSubjectId: serverStudent.studentClassSubjectId,  // ✅ إضافة studentClassSubjectId
           date: DateTime.now(),
           dailyGrades: dailyGrades,
         ));

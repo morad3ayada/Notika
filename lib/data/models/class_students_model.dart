@@ -11,6 +11,7 @@ class Student extends Equatable {
   final String? classId;
   final String? levelName;
   final String? className;
+  final String? studentClassSubjectId;  // ✅ إضافة studentClassSubjectId
   final bool? isActive;
   final DateTime? createdAt;
 
@@ -24,6 +25,7 @@ class Student extends Equatable {
     this.classId,
     this.levelName,
     this.className,
+    this.studentClassSubjectId,
     this.isActive,
     this.createdAt,
   });
@@ -90,6 +92,8 @@ class Student extends Equatable {
                  json['LevelName']?.toString(),
       className: json['className']?.toString() ?? 
                  json['ClassName']?.toString(),
+      studentClassSubjectId: json['studentClassSubjectId']?.toString() ??
+                           json['StudentClassSubjectId']?.toString(),
       isActive: json['isActive'] as bool? ?? 
                 json['IsActive'] as bool? ?? 
                 true, // افتراضي true
@@ -98,6 +102,7 @@ class Student extends Equatable {
           : json['CreatedAt'] != null 
               ? DateTime.tryParse(json['CreatedAt'].toString())
               : null,
+    
     );
   }
 
@@ -113,6 +118,7 @@ class Student extends Equatable {
       'classId': classId,
       'levelName': levelName,
       'className': className,
+      'studentClassSubjectId': studentClassSubjectId,
       'isActive': isActive,
       'createdAt': createdAt?.toIso8601String(),
     };
@@ -169,6 +175,7 @@ class Student extends Equatable {
         classId,
         levelName,
         className,
+        studentClassSubjectId,
         isActive,
         createdAt,
       ];

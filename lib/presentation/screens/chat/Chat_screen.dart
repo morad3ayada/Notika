@@ -307,7 +307,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         
         // حالة النجاح - عرض الطلاب
         if (state is AllStudentsLoaded) {
-          final students = state.students;
+          // استخدام Map لإزالة الطلاب المكررين بناءً على المعرف
+          final uniqueStudents = <String, AllStudent>{};
+          for (var student in state.students) {
+            final studentId = student.userId ?? '';
+            if (studentId.isNotEmpty && !uniqueStudents.containsKey(studentId)) {
+              uniqueStudents[studentId] = student;
+            }
+          }
+          final students = uniqueStudents.values.toList();
+          
+          if (students.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.search_off, size: 60, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'لم يتم العثور على نتائج',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            );
+          }
           
           return ListView.separated(
             padding: const EdgeInsetsDirectional.only(top: 6, bottom: 6),

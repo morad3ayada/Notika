@@ -92,16 +92,18 @@ class _SignInScreenState extends State<SignInScreen> {
         if (state is AuthSuccess) {
           // Update Provider and navigate, keep visuals the same
           context.read<UserProvider>().updateUserData(state.response);
-          
-          // عرض رسالة تأكيد حفظ البيانات
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ تم تسجيل الدخول وحفظ البيانات بنجاح'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-          
+
+          // عرض رسالة تأكيد حفظ البيانات فقط للمحاولات الفعلية لتسجيل الدخول
+          if (state.isFromLogin) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✅ تم تسجيل الدخول وحفظ البيانات بنجاح'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+
           // الانتقال للصفحة الرئيسية
           Future.delayed(const Duration(milliseconds: 500), () {
             Navigator.of(context).pushReplacementNamed('/home');

@@ -10,14 +10,17 @@ import '../../../logic/blocs/class_students/class_students_barrel.dart';
 
 import '../../../logic/blocs/daily_grade_titles/daily_grade_titles_barrel.dart';
 import '../../../logic/blocs/daily_grades/daily_grades_barrel.dart';
+import '../../../logic/blocs/term_grades/term_grades_barrel.dart';
 import '../../../data/models/profile_models.dart';
 import '../../../data/models/class_students_model.dart';
 import '../../../data/models/daily_grade_titles_model.dart';
 import '../../../data/models/daily_grades_model.dart';
+import '../../../data/models/term_grades_model.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/class_students_repository.dart';
 import '../../../data/repositories/daily_grade_titles_repository.dart';
 import '../../../data/repositories/daily_grades_repository.dart';
+import '../../../data/repositories/term_grades_repository.dart';
 import '../../../di/injector.dart';
 import '../../../utils/teacher_class_matcher.dart';
 import '../../../utils/server_data_mixin.dart';
@@ -65,12 +68,16 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
   late final ClassStudentsBloc _classStudentsBloc;
   late final DailyGradeTitlesBloc _dailyGradeTitlesBloc;
   late final DailyGradesBloc _dailyGradesBloc;
+  late final TermGradesBloc _termGradesBloc;
 
   // قائمة الطلاب المجلوبة من السيرفر
   List<Student> _serverStudents = [];
 
   // قائمة عناوين الدرجات المجلوبة من السيرفر
   List<String> _serverGradeTitles = [];
+  
+  // قائمة الدرجات الفصلية من السيرفر
+  List<StudentTermGrades> _termGrades = [];
 
   // Map لحفظ الدرجات: studentId -> (gradeTitleId -> grade)
   final Map<String, Map<String, TextEditingController>> _gradeControllers = {};
@@ -468,6 +475,70 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
     }
   }
 
+  /// دالة جلب الدرجات الفصلية عند اختيار المادة
+  void _loadTermGrades(List<TeacherClass> classes) {
+    if (selectedSchool == null ||
+        selectedStage == null ||
+        selectedSection == null ||
+        selectedSubject == null) {
+      print('⚠️ لم يتم اختيار جميع الحقول المطلوبة للدرجات الفصلية');
+      return;
+    }
+
+    print('🔍 البحث عن TeacherClass المطابق للدرجات الفصلية...');
+    
+    // البحث عن TeacherClass المطابق
+    TeacherClass? matchingClass;
+    try {
+      matchingClass = classes.firstWhere(
+        (c) =>
+            c.schoolName?.trim() == selectedSchool?.trim() &&
+            c.levelName?.trim() == selectedStage?.trim() &&
+            c.className?.trim() == selectedSection?.trim() &&
+            c.subjectName?.trim() == selectedSubject?.trim(),
+      );
+    } catch (e) {
+      print('❌ لم يتم العثور على TeacherClass مطابق');
+    }
+
+    // التحقق من وجود جميع المعرفات المطلوبة
+    if (matchingClass != null &&
+        matchingClass.subjectId != null &&
+        matchingClass.levelId != null &&
+        matchingClass.classId != null) {
+      
+      print('═══════════════════════════════════════════════════════');
+      print('✅ جلب الدرجات الفصلية');
+      print('═══════════════════════════════════════════════════════');
+      print('📋 بيانات الفصل:');
+      print('   - School: ${matchingClass.schoolName}');
+      print('   - Stage: ${matchingClass.levelName}');
+      print('   - Section: ${matchingClass.className}');
+      print('   - Subject: ${matchingClass.subjectName}');
+      print('');
+      print('📊 المعرفات:');
+      print('   - SubjectId: ${matchingClass.subjectId}');
+      print('   - LevelId: ${matchingClass.levelId}');
+      print('   - ClassId: ${matchingClass.classId}');
+      print('═══════════════════════════════════════════════════════');
+      
+      _termGradesBloc.add(LoadTermGradesEvent(
+        subjectId: matchingClass.subjectId!,
+        levelId: matchingClass.levelId!,
+        classId: matchingClass.classId!,
+      ));
+    } else {
+      print('❌ لم يتم العثور على معرفات الفصل والمادة للدرجات الفصلية');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('خطأ: لم يتم العثور على معرفات الفصل والمادة'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   // Students data with dynamic components
   final Map<String, List<Map<String, dynamic>>> sectionStudents = {
     'شعبة أ': [
@@ -522,6 +593,7 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
     _classStudentsBloc = ClassStudentsBloc(sl<ClassStudentsRepository>());
     _dailyGradeTitlesBloc = DailyGradeTitlesBloc(sl<DailyGradeTitlesRepository>());
     _dailyGradesBloc = DailyGradesBloc(sl<DailyGradesRepository>());
+    _termGradesBloc = TermGradesBloc(sl<TermGradesRepository>());
     
     // طباعة عند بداية الشاشة
     final now = DateTime.now();
@@ -548,6 +620,7 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
     _classStudentsBloc.close();
     _dailyGradeTitlesBloc.close();
     _dailyGradesBloc.close();
+    _termGradesBloc.close();
     super.dispose();
   }
 
@@ -708,6 +781,45 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                 _allQuizzes.clear();
                 _allAssignments.clear();
               });
+            }
+          },
+        ),
+        // مستمع للدرجات الفصلية
+        BlocListener<TermGradesBloc, TermGradesState>(
+          bloc: _termGradesBloc,
+          listener: (context, state) {
+            if (state is TermGradesLoaded) {
+              print('✅ تم جلب درجات ${state.studentGrades.length} طالب من السيرفر (فصلية)');
+              setState(() {
+                _termGrades = state.studentGrades;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('تم جلب درجات ${state.studentGrades.length} طالب بنجاح'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            } else if (state is TermGradesError) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('خطأ في جلب الدرجات الفصلية: ${state.message}'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            } else if (state is TermGradesEmpty) {
+              print('📭 لا توجد درجات فصلية مسجلة');
+              setState(() {
+                _termGrades = [];
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('لا توجد درجات فصلية مسجلة لهذا الفصل'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 2),
+                ),
+              );
             }
           },
         ),
@@ -1115,11 +1227,11 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      child: _buildGradeTypeButton('يومية'),
+                                      child: _buildGradeTypeButton('يومية', classes),
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
-                                      child: _buildGradeTypeButton('فصلية'),
+                                      child: _buildGradeTypeButton('فصلية', classes),
                                     ),
                                   ],
                                 ),
@@ -1797,7 +1909,7 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
   }
 
   // بناء زر نوع الدرجات
-  Widget _buildGradeTypeButton(String type) {
+  Widget _buildGradeTypeButton(String type, List<TeacherClass> classes) {
     final isSelected = gradeType == type;
     return Material(
       color: Colors.transparent,
@@ -1806,6 +1918,10 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
           setState(() {
             gradeType = type;
           });
+          // جلب الدرجات الفصلية عند اختيار نوع فصلية
+          if (type == 'فصلية' && selectedSubject != null) {
+            _loadTermGrades(classes);
+          }
         },
         borderRadius: BorderRadius.circular(12),
         child: Container(
@@ -1920,18 +2036,11 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                 numeric: true,
               ),
             ],
-            rows: selectedSection != null
+            rows: _termGrades.isNotEmpty
                 ? List<DataRow>.generate(
-                    (sectionStudents[selectedSection] ?? []).length,
+                    _termGrades.length,
                     (index) {
-                      final student =
-                          (sectionStudents[selectedSection] ?? [])[index];
-
-                      student['firstTermAvg'] = student['firstTermAvg'] ?? '0';
-                      student['midtermExam'] = student['midtermExam'] ?? '0';
-                      student['secondTermAvg'] =
-                          student['secondTermAvg'] ?? '0';
-                      student['annualAvg'] = _calculateAnnualAverage(student);
+                      final student = _termGrades[index];
 
                       return DataRow(
                         cells: [
@@ -1942,7 +2051,7 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                                   const EdgeInsets.symmetric(horizontal: 8),
                               alignment: Alignment.centerRight,
                               child: Text(
-                                student['name'] ?? '',
+                                student.studentName,
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(fontSize: 14),
                               ),
@@ -1950,43 +2059,38 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                           ),
                           // First Term Average
                           DataCell(
-                            TextFormField(
-                              initialValue:
-                                  student['firstTermAvg']?.toString() ?? '0',
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              onChanged: (value) {
-                                setState(() {
-                                  student['firstTermAvg'] = value;
-                                  student['annualAvg'] =
-                                      _calculateAnnualAverage(student);
-                                });
-                              },
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              alignment: Alignment.center,
+                              child: Text(
+                                student.firstTermAverage?.toStringAsFixed(2) ?? '-',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 14),
+                              ),
                             ),
                           ),
                           // Midterm Exam (read-only)
                           DataCell(
-                            TextFormField(
-                              initialValue:
-                                  student['midtermExam']?.toString() ?? '0',
-                              enabled: false,
-                              textAlign: TextAlign.center,
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              alignment: Alignment.center,
+                              child: Text(
+                                student.midtermExam?.toStringAsFixed(2) ?? '-',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 14),
+                              ),
                             ),
                           ),
                           // Second Term Average
                           DataCell(
-                            TextFormField(
-                              initialValue:
-                                  student['secondTermAvg']?.toString() ?? '0',
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              onChanged: (value) {
-                                setState(() {
-                                  student['secondTermAvg'] = value;
-                                  student['annualAvg'] =
-                                      _calculateAnnualAverage(student);
-                                });
-                              },
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              alignment: Alignment.center,
+                              child: Text(
+                                student.secondTermAverage?.toStringAsFixed(2) ?? '-',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 14),
+                              ),
                             ),
                           ),
                           // Annual Average (calculated)
@@ -1998,7 +2102,7 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                student['annualAvg']?.toString() ?? '0.00',
+                                student.annualAverage?.toStringAsFixed(2) ?? '-',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
@@ -2012,41 +2116,6 @@ class _GradesScreenState extends State<GradesScreen> with ServerDataMixin<Grades
                     },
                   )
                 : [],
-          ),
-        ),
-        // زر الحفظ
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isSaving ? null : _saveGrades,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1976D2),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 4,
-              ),
-              child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(
-                      gradeType == 'يومية' ? 'حفظ الدرجات اليومية' : 'حفظ الدرجات الفصلية',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
           ),
         ),
       ],

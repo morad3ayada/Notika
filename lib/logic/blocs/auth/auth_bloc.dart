@@ -20,7 +20,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
     try {
       final response = await repository.login(event.username, event.password);
-      emit(AuthSuccess(response));
+      emit(AuthSuccess(response, isFromLogin: true));
     } catch (e) {
       emit(AuthFailure(e.toString().replaceAll('Exception: ', '')));
     }
@@ -128,7 +128,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             debugPrint('✅ Response created');
             debugPrint('🚀 Emitting AuthSuccess...');
             
-            emit(AuthSuccess(response));
+            emit(AuthSuccess(response, isFromLogin: false));
             
             debugPrint('✅ DONE!');
           } catch (e) {

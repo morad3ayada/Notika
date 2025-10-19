@@ -2,9 +2,9 @@ import 'package:equatable/equatable.dart';
 /// نموذج بيانات عنوان الدرجة الواحد
 class DailyGradeTitle extends Equatable {
   final String? id;
-  final String? title;
+  String? title;  // Made non-final for editing
   final String? description;
-  final double? maxGrade;  // تغيير من int إلى double لدعم القيم العشرية
+  double? maxGrade;  // Made non-final for editing, and changed from int to double for decimal support
   final int? order;
   final bool? isActive;
   final String? levelSubjectId;
@@ -12,7 +12,7 @@ class DailyGradeTitle extends Equatable {
   final String? classId;
   final DateTime? createdAt;
 
-  const DailyGradeTitle({
+  DailyGradeTitle({
     this.id,
     this.title,
     this.description,
@@ -24,6 +24,33 @@ class DailyGradeTitle extends Equatable {
     this.classId,
     this.createdAt,
   });
+
+  /// نسخ الكائن مع تعديل بعض الخصائص
+  DailyGradeTitle copyWith({
+    String? id,
+    String? title,
+    String? description,
+    double? maxGrade,
+    int? order,
+    bool? isActive,
+    String? levelSubjectId,
+    String? levelId,
+    String? classId,
+    DateTime? createdAt,
+  }) {
+    return DailyGradeTitle(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      maxGrade: maxGrade ?? this.maxGrade,
+      order: order ?? this.order,
+      isActive: isActive ?? this.isActive,
+      levelSubjectId: levelSubjectId ?? this.levelSubjectId,
+      levelId: levelId ?? this.levelId,
+      classId: classId ?? this.classId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 
   /// إنشاء من JSON بطريقة آمنة ومرنة
   factory DailyGradeTitle.fromJson(Map<String, dynamic> json) {
@@ -108,9 +135,9 @@ class DailyGradeTitle extends Equatable {
   @override
   List<Object?> get props => [
         id,
-        title,
+        // title, // Removed because it's mutable
         description,
-        maxGrade,
+        // maxGrade, // Removed because it's mutable
         order,
         isActive,
         levelSubjectId,

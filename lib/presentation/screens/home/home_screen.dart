@@ -517,12 +517,12 @@ class HomeScreenContent extends StatelessWidget {
                                       context,
                                       MaterialPageRoute(builder: (_) => StudentAttendanceScreen()),
                                     );
-                                  } else if (card["title"].contains("ارسال اسئله الامتحانيه")) {
+                                  } else if (card["title"] == "ارسال اسئلة الامتحانات") {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(builder: (_) => ExamQuestionsScreen()),
                                     );
-                                  } else if (card["title"] == "اختبارات قصيرة تفاعلية") {
+                                  } else if (card["title"] == "اختبارات سريعة") {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(builder: (_) => QuickTestsScreen()),
@@ -702,7 +702,7 @@ class HomePageContent {
           LinearGradient(colors: [Color(0xFF1A237E), Color(0xFF00BCD4)]),
     },
     {
-      "title": "اختبارات قصيرة تفاعلية",
+      "title": "اختبارات سريعة",
       "icon": Icons.quiz,
       "iconColor": Color(0xFFFFC107),
       "iconBg": Color(0xFFFFF9C4),
@@ -711,13 +711,12 @@ class HomePageContent {
           LinearGradient(colors: [Color(0xFF1976D2), Color(0xFFFFC107)]),
     },
     {
-      "title": "ارسال اسئله الامتحانيه ",
-      "icon": Icons.send,
-      "iconColor": Color(0xFFE040FB),
-      "iconBg": Color(0xFFF3E5F5),
-      "hint": "مراسلة الطلاب بالأسئلة",
-      "gradient":
-          LinearGradient(colors: [Color(0xFF1A237E), Color(0xFFE040FB)]),
+      "title": "ارسال اسئلة الامتحانات",
+      "icon": Icons.quiz,
+      "iconColor": Color(0xFF7B1FA2),
+      "iconBg": Color(0xFFE1BEE7),
+      "hint": "مراسلة الإدارة",
+      "gradient": LinearGradient(colors: [Color(0xFF7B1FA2), Color(0xFFE1BEE7)]),
     },
     {
       "title": "الجلسات التعليمية",

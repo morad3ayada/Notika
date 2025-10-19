@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -173,6 +175,7 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
   File? selectedFile;
   File? selectedAudio;
   String? selectedSchool;
+  dynamic _currentMatchingClass; // Add this line to store the current matching class
   String? selectedStage;
   String? selectedSection;
   String? selectedSubject;
@@ -815,6 +818,38 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
       return;
     }
 
+    // Save the matching class for later use
+    setState(() {
+      _currentMatchingClass = matchingClass;
+    });
+
+    // Create a subscription to listen for the success state
+    late final StreamSubscription subscription;
+    subscription = _fileClassificationBloc.stream.listen((state) {
+      if (state is AddFileClassificationSuccess) {
+        // After successfully adding a new unit, refresh the file classifications list
+        _fileClassificationBloc.add(LoadFileClassificationsEvent(
+          levelSubjectId: _currentMatchingClass.levelSubjectId ??
+              _currentMatchingClass.subjectId ??
+              '00000000-0000-0000-0000-000000000000',
+          levelId: _currentMatchingClass.levelId ?? '00000000-0000-0000-0000-000000000000',
+          classId: _currentMatchingClass.classId ?? '00000000-0000-0000-0000-000000000000',
+        ));
+        
+        // Close the bottom sheet after a short delay
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            Navigator.of(context).pop();
+            // Clear the controller after successful addition
+            _fileClassificationNameController.clear();
+          }
+        });
+        
+        // Cancel the subscription to prevent memory leaks
+        subscription.cancel();
+      }
+    });
+
     // Dispatch AddFileClassificationEvent to BLoC
     _fileClassificationBloc.add(AddFileClassificationEvent(
       levelSubjectId: matchingClass.levelSubjectId ??
@@ -1277,9 +1312,27 @@ class _PdfUploadScreenState extends State<PdfUploadScreen> {
                                                   onTap: () {
                                                     setState(() {
                                                       selectedSubject = subject;
+                                                      selectedUnit = null; // Reset selected unit when subject changes
                                                     });
                                                     
-                                                    // جلب FileClassifications عند اختيار المادة
+                                                    // Load file classifications when a subject is selected
+                                                    if (selectedSchool != null && selectedStage != null && selectedSection != null) {
+                                                      final matchingClass = TeacherClassMatcher.findMatchingTeacherClass(
+                                                        (_profileBloc.state as ProfileLoaded).classes,
+                                                        selectedSchool!,
+                                                        selectedStage!,
+                                                        selectedSection!,
+                                                        subject,
+                                                      );
+                                                      
+                                                      if (matchingClass != null) {
+                                                        _fileClassificationBloc.add(LoadFileClassificationsEvent(
+                                                          levelSubjectId: matchingClass.levelSubjectId ?? matchingClass.subjectId ?? '00000000-0000-0000-0000-000000000000',
+                                                          levelId: matchingClass.levelId ?? '00000000-0000-0000-0000-000000000000',
+                                                          classId: matchingClass.classId ?? '00000000-0000-0000-0000-000000000000',
+                                                        ));
+                                                      }
+                                                    }
                                                     _loadFileClassifications(
                                                       classes,
                                                       selectedSchool,

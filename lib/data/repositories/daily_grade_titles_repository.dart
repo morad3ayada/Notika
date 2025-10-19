@@ -153,7 +153,7 @@ class DailyGradeTitlesRepository {
   /// إضافة عنوان درجة يومية جديد
   Future<bool> createDailyGradeTitle({
     required String title,
-    required int maxGrade,
+    required double maxGrade,
     required String levelId,
     required String classId,
     required String levelSubjectId,
@@ -247,33 +247,101 @@ class DailyGradeTitlesRepository {
     }
   }
 
-  /// جلب تفاصيل عنوان درجة معين (اختياري للمستقبل)
-  Future<DailyGradeTitle?> getGradeTitleDetails(String titleId) async {
+  /// تحديث عنوان درجة يومية موجود
+  Future<bool> updateDailyGradeTitle({
+    required String titleId,
+    required String title,
+    required double maxGrade,
+    String? description,
+    int? order,
+  }) async {
     try {
+      print('📝 تحديث عنوان درجة يومية...');
+      print('📌 ID العنوان: $titleId');
+      print('📌 العنوان الجديد: $title');
+      print('📊 الدرجة القصوى الجديدة: $maxGrade');
+
       final token = await AuthService.getToken();
       if (token == null || token.isEmpty) {
-        throw Exception('لم يتم العثور على رمز المصادقة');
+        print('❌ لا يوجد token');
+        return false;
       }
 
-      final url = Uri.parse('$baseUrl/dailygradetitles/$titleId');
+      final uri = Uri.parse('$baseUrl/dailygradetitles');
 
-      final response = await http.get(
-        url,
+      final body = {
+        'id': titleId,
+        'title': title,
+        'maxGrade': maxGrade,
+        if (description != null) 'description': description,
+        if (order != null) 'order': order,
+      };
+
+      print('📦 البيانات المرسلة: $body');
+
+      final response = await http.put(
+        uri,
+        headers: {
+          'accept': 'text/plain',
+          'Authorization': token,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      print('📊 كود الاستجابة: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('✅ تم تحديث عنوان الدرجة بنجاح');
+        return true;
+      } else {
+        print('❌ فشل تحديث عنوان الدرجة: ${response.statusCode}');
+        print('❌ نص الخطأ: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ خطأ في تحديث عنوان الدرجة: $e');
+      return false;
+    }
+  }
+
+  /// حذف عنوان درجة يومية
+  Future<bool> deleteDailyGradeTitle(String titleId) async {
+    try {
+      print('🗑️ حذف عنوان درجة يومية...');
+      print('📌 ID العنوان: $titleId');
+
+      final token = await AuthService.getToken();
+      if (token == null || token.isEmpty) {
+        print('❌ لا يوجد token');
+        return false;
+      }
+
+      final uri = Uri.parse('$baseUrl/dailygradetitles/$titleId');
+
+      print('🌐 إرسال طلب حذف إلى: $uri');
+
+      final response = await http.delete(
+        uri,
         headers: {
           'accept': 'text/plain',
           'Authorization': token,
         },
       );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> titleData = jsonDecode(response.body);
-        return DailyGradeTitle.fromJson(titleData);
+      print('📊 كود الاستجابة: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('✅ تم حذف عنوان الدرجة بنجاح');
+        return true;
       } else {
-        throw Exception('فشل في جلب تفاصيل عنوان الدرجة');
+        print('❌ فشل حذف عنوان الدرجة: ${response.statusCode}');
+        print('❌ نص الخطأ: ${response.body}');
+        return false;
       }
     } catch (e) {
-      print('❌ خطأ في جلب تفاصيل عنوان الدرجة: $e');
-      return null;
+      print('❌ خطأ في حذف عنوان الدرجة: $e');
+      return false;
     }
   }
 }

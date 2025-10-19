@@ -156,9 +156,18 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
 
   void _submit() {
     // Validate title
-    if (_titleController.text.trim().isEmpty) {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('يرجى إدخال عنوان الاختبار')),
+      );
+      return;
+    }
+    
+    // Validate title length (max 10 characters)
+    if (title.length > 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('عنوان الاختبار يجب ألا يزيد عن 10 أحرف')),
       );
       return;
     }
@@ -989,8 +998,17 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
                         ),
                         child: TextFormField(
                           controller: _titleController,
+                          maxLength: 10,
+                          buildCounter: (BuildContext context, {int? currentLength, int? maxLength, bool? isFocused}) {
+                            return Text(
+                              '$currentLength/10',
+                              style: TextStyle(
+                                color: currentLength! > 10 ? Colors.red : Colors.grey,
+                              ),
+                            );
+                          },
                           decoration: InputDecoration(
-                            hintText: 'مثال: اختبار الوحدة الأولى',
+                            hintText: 'مثال: اختبار',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: BorderSide(color: Color(0xFFE0E0E0)),
@@ -1011,13 +1029,26 @@ class _QuickTestsScreenState extends State<QuickTestsScreen> {
                       const SizedBox(height: 16),
                       
                       // Deadline field
-                      Text(
-                        'موعد الاختبار',
-                        style: TextStyle(
-                          color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
+Row(
+                        children: [
+                          Text(
+                            'موعد الاختبار',
+                            style: TextStyle(
+                              color: Theme.of(context).textTheme.titleLarge?.color ?? const Color(0xFF233A5A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '(آخر موعد لدخول الطلاب للاختبار)',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       Container(

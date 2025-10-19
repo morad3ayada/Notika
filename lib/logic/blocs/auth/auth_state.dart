@@ -12,9 +12,10 @@ class AuthLoading extends AuthState {}
 
 class AuthSuccess extends AuthState {
   final LoginResponse response;
-  const AuthSuccess(this.response);
+  final bool isFromLogin; // true if from login attempt, false if from session restoration
+  const AuthSuccess(this.response, {this.isFromLogin = false});
   @override
-  List<Object?> get props => [response];
+  List<Object?> get props => [response, isFromLogin];
 }
 
 class AuthFailure extends AuthState {

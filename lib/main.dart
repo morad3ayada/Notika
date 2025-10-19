@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/auth/sign_in.dart';
+import 'presentation/screens/auth/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'data/models/grade_components.dart';
 import 'providers/user_provider.dart';
@@ -198,15 +199,19 @@ class _AuthInitializerState extends State<AuthInitializer> {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        debugPrint('🎨 Building home - State: ${state.runtimeType}');
-        
-        if (state is AuthSuccess) {
+        debugPrint('🎨 Building AuthInitializer - State: ${state.runtimeType}');
+
+        if (state is AuthLoading) {
+          // Show splash screen while checking authentication
+          debugPrint('⏳ AuthLoading - Showing splash screen');
+          return const SplashScreen();
+        } else if (state is AuthSuccess) {
           // User is logged in, go to main screen
-          debugPrint('✅ MainScreen');
+          debugPrint('✅ AuthSuccess - Going to MainScreen');
           return MainScreen();
         } else {
           // User is not logged in, show sign in screen
-          debugPrint('⚠️ SignInScreen');
+          debugPrint('⚠️ AuthInitial/AuthFailure - Showing SignInScreen');
           return SignInScreen();
         }
       },
